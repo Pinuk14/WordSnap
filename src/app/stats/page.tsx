@@ -3,20 +3,22 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getPersonalStats, UserStats } from '@/lib/firebase/stats';
-import { subscribeToAuthChanges, signInAnonymouslyToFirebase } from '@/lib/firebase/auth';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { AuthBadge } from '@/components/auth/AuthBadge';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function StatsPage() {
+  const { user, isGuest, isAuthenticated, setShowAuthModal } = useAuth();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let unsubAuth: () => void;
+    if (!user) return;
     
-    const loadStats = async (uid: string) => {
+    const loadStats = async () => {
       try {
-        const data = await getPersonalStats(uid);
+        const data = await getPersonalStats(user.uid);
         setStats(data);
       } catch (err) {
         console.error('Failed to load stats', err);
@@ -25,24 +27,10 @@ export default function StatsPage() {
       }
     };
 
-    const init = async () => {
-      await signInAnonymouslyToFirebase();
-      unsubAuth = subscribeToAuthChanges((user) => {
-        if (user) {
-          loadStats(user.uid);
-        } else {
-          setLoading(false);
-        }
-      });
-    };
-    init();
+    loadStats();
+  }, [user]);
 
-    return () => {
-      if (unsubAuth) unsubAuth();
-    };
-  }, []);
-
-  if (loading) {
+  if (!isAuthenticated || loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-primary">
         <h1 className="font-display text-4xl animate-pulse">LOADING STATS...</h1>
@@ -58,13 +46,32 @@ export default function StatsPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center">
+    <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center relative">
+      <div className="absolute top-4 right-4 md:top-8 md:right-8 z-40">
+        <AuthBadge />
+      </div>
+
       <header className="w-full max-w-4xl flex justify-between items-center mb-12">
         <h1 className="font-display text-5xl md:text-6xl text-primary drop-shadow-[4px_4px_0_#000]">MY STATS</h1>
         <Link href="/">
           <Button variant="secondary">HOME</Button>
         </Link>
       </header>
+
+      {isGuest && (
+        <div className="w-full max-w-4xl mb-6 bg-warning text-black border-4 border-black rounded-brutal p-4 shadow-[4px_4px_0_#000] flex flex-col md:flex-row items-center justify-between gap-4">
+          <p className="font-bold text-sm md:text-base text-center md:text-left">
+            👤 Guest stats are temporary and will be lost when your session ends.
+          </p>
+          <Button
+            variant="primary"
+            className="text-sm whitespace-nowrap"
+            onClick={() => setShowAuthModal(true)}
+          >
+            SIGN IN TO SAVE
+          </Button>
+        </div>
+      )}
 
       {!stats ? (
         <Card className="w-full max-w-md p-8 text-center bg-card flex flex-col gap-4">
@@ -78,7 +85,9 @@ export default function StatsPage() {
         <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           <div className="col-span-2 md:col-span-4 bg-secondary text-black border-4 border-black p-6 rounded-brutal shadow-[8px_8px_0_#000] mb-4">
             <h2 className="font-display text-4xl mb-2">{stats.playerName.toUpperCase()}</h2>
-            <p className="font-bold text-lg opacity-80">WordSnap Anonymous Profile</p>
+            <p className="font-bold text-lg opacity-80">
+              {isGuest ? 'Guest Profile (Temporary)' : 'WordSnap Profile'}
+            </p>
           </div>
 
           <StatBox label="Games Played" value={stats.gamesPlayed} />

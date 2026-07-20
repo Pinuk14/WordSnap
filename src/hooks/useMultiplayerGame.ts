@@ -17,6 +17,7 @@ import { getTurnDuration } from '@/lib/game-engine/gameModes';
 import { loadDictionary, getDictionarySize, generateHint } from '@/lib/game-engine/dictionary';
 import { loadCategoryDictionary, getAvailableCategories } from '@/lib/game-engine/categoryDictionary';
 import { useToast } from '@/components/ui/Toast';
+import { sanitizePlayerName, sanitizeWord, sanitizeRoomCode } from '@/lib/sanitize';
 
 export interface RoomState {
   status: 'lobby' | 'playing';
@@ -172,14 +173,15 @@ export function useMultiplayerGame() {
   // Actions
   const createRoom = useCallback(async (playerName: string, forcedRoomId?: string) => {
     if (!userId) return;
-    const newRoomId = forcedRoomId || Math.random().toString(36).substring(2, 6).toUpperCase();
+    const safeName = sanitizePlayerName(playerName);
+    const newRoomId = forcedRoomId ? sanitizeRoomCode(forcedRoomId) : Math.random().toString(36).substring(2, 6).toUpperCase();
     
     await set(ref(db, `rooms/${newRoomId}`), {
       status: 'lobby',
       mode: 'classic',
       hostId: userId,
       players: {
-        [userId]: { name: playerName }
+        [userId]: { name: safeName }
       },
       gameState: null
     });
@@ -189,7 +191,8 @@ export function useMultiplayerGame() {
 
   const joinRoom = useCallback(async (joinCode: string, playerName: string) => {
     if (!userId) return;
-    const code = joinCode.toUpperCase();
+    const code = sanitizeRoomCode(joinCode);
+    const safeName = sanitizePlayerName(playerName);
     const roomRef = ref(db, `rooms/${code}`);
     const snap = await get(roomRef);
     if (!snap.exists()) {
@@ -200,7 +203,7 @@ export function useMultiplayerGame() {
     // Use transaction to add player to avoid race conditions
     await runTransaction(ref(db, `rooms/${code}/players`), (players) => {
       if (!players) return players;
-      players[userId] = { name: playerName };
+      players[userId] = { name: safeName };
       return players;
     });
 
@@ -233,11 +236,17 @@ export function useMultiplayerGame() {
   const submit = useCallback((word: string) => {
     if (!roomId || !roomState || !roomState.gameState || !userId) return false;
 
+    const safeWord = sanitizeWord(word);
+    if (!safeWord) {
+      addToast('Invalid input', 'danger');
+      return false;
+    }
+
     const gs = roomState.gameState;
     const currentPlayerId = gs.playerOrder[gs.currentPlayerIndex];
     
     // Optimistic check
-    const result = engineSubmitWord(gs, currentPlayerId, word);
+    const result = engineSubmitWord(gs, currentPlayerId, safeWord);
     if (!result.isValid) {
       addToast(result.error || 'Invalid word', 'danger');
       return false;
@@ -260,7 +269,7 @@ export function useMultiplayerGame() {
       }
       if (!currentGs.wordHistory) currentGs.wordHistory = [];
       
-      const serverResult = engineSubmitWord(currentGs, currentPlayerId, word);
+      const serverResult = engineSubmitWord(currentGs, currentPlayerId, safeWord);
       if (serverResult.isValid) {
         const serverNext = serverResult.state;
         if (serverNext.mode === 'category' && serverNext.wordHistory.length % 5 === 0) {

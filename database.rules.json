@@ -1,0 +1,86 @@
+{
+  "rules": {
+    // ──────────────────────────────────────────────
+    // GLOBAL: All reads and writes require authentication
+    // ──────────────────────────────────────────────
+    "rooms": {
+      "$roomId": {
+        // Anyone authenticated can read room data (needed to join/spectate)
+        ".read": "auth != null",
+        // Room-level writes: only allow creating a new room
+        ".write": "auth != null && !data.exists()",
+        "status": {
+          // Only the host can change room status
+          ".write": "auth != null && auth.uid === data.parent().child('hostId').val()"
+        },
+        "mode": {
+          // Only the host can change game mode
+          ".write": "auth != null && auth.uid === data.parent().child('hostId').val()"
+        },
+        "hostId": {
+          // Host ID is set on creation and cannot be changed
+          ".write": "auth != null && !data.exists()"
+        },
+        "players": {
+          "$userId": {
+            // Players can only add/modify their own entry
+            ".write": "auth != null && auth.uid === $userId",
+            ".validate": "newData.hasChild('name') && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 20"
+          }
+        },
+        "gameState": {
+          // Game state: readable by authenticated users, writable by authenticated players in the room
+          // In a production system with Cloud Functions, this would be server-only write.
+          // For now, we allow authenticated room participants to write (validated client-side).
+          ".read": "auth != null",
+          ".write": "auth != null && data.parent().child('players').child(auth.uid).exists()"
+        },
+        "presence": {
+          "$userId": {
+            // Users can only update their own presence
+            ".write": "auth != null && auth.uid === $userId",
+            ".validate": "newData.hasChild('state') && newData.hasChild('lastChanged')"
+          }
+        }
+      }
+    },
+    "players": {
+      "$userId": {
+        // Users can only read and write their own profile
+        ".read": "auth != null && auth.uid === $userId",
+        ".write": "auth != null && auth.uid === $userId",
+        ".validate": "newData.hasChild('displayName') && newData.hasChild('uid') && newData.child('uid').val() === $userId"
+      }
+    },
+    "stats": {
+      "users": {
+        "$userId": {
+          // Users can read their own stats; writes allowed for stat recording
+          ".read": "auth != null && auth.uid === $userId",
+          ".write": "auth != null && auth.uid === $userId"
+        }
+      }
+    },
+    "leaderboards": {
+      // Everyone authenticated can read leaderboards
+      ".read": "auth != null",
+      "$timeframe": {
+        "$period": {
+          "$userId": {
+            // Only non-anonymous users can write to leaderboards
+            // This is enforced client-side and here as a safety net
+            ".write": "auth != null && auth.uid === $userId && auth.token.firebase.sign_in_provider !== 'anonymous'",
+            ".validate": "newData.hasChild('score') && newData.hasChild('playerName') && newData.hasChild('userId') && newData.child('userId').val() === $userId && newData.child('score').isNumber()"
+          }
+        }
+      },
+      // allTime is a flat structure (no period nesting)
+      "allTime": {
+        "$userId": {
+          ".write": "auth != null && auth.uid === $userId && auth.token.firebase.sign_in_provider !== 'anonymous'",
+          ".validate": "newData.hasChild('score') && newData.hasChild('playerName') && newData.hasChild('userId') && newData.child('userId').val() === $userId && newData.child('score').isNumber()"
+        }
+      }
+    }
+  }
+}

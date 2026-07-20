@@ -21,6 +21,8 @@ export const metadata: Metadata = {
 };
 
 import { ToastProvider } from "@/components/ui/Toast";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthModal } from "@/components/auth/AuthModal";
 
 export default function RootLayout({
   children,
@@ -30,9 +32,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${pressStart2P.variable} font-sans antialiased`}>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <AuthProvider>
+          <ToastProvider>
+            {children}
+            <AuthModal />
+          </ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

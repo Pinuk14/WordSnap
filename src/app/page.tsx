@@ -1,9 +1,17 @@
+'use client';
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
+import { AuthBadge } from '@/components/auth/AuthBadge';
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center gap-12">
+    <main className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center gap-12 relative">
+      {/* Auth Badge — top right */}
+      <div className="absolute top-4 right-4 md:top-8 md:right-8 z-40">
+        <AuthBadge />
+      </div>
+
       <div className="space-y-4">
         <h1 className="font-display text-7xl md:text-9xl text-primary drop-shadow-[8px_8px_0_#000] tracking-wider uppercase transform -rotate-2">
           WordSnap

@@ -1,5 +1,6 @@
 import { ref, get, runTransaction, query, orderByChild, limitToLast } from 'firebase/database';
 import { db } from './config';
+import { auth } from './config';
 import { GameState } from '@/lib/game-engine/types';
 import { getInitialLives } from '@/lib/game-engine/gameModes';
 
@@ -118,6 +119,17 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
 
     return stats;
   });
+
+  // Only write to permanent leaderboards if the user is NOT a guest
+  const isGuestUser = auth.currentUser?.isAnonymous ?? true;
+  if (isGuestUser) {
+    // Guest users still get their stats recorded for session viewing,
+    // but they are excluded from permanent leaderboards.
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(localKey, 'true');
+    }
+    return;
+  }
 
   // Update Leaderboards (Ranking by Highest Score in a Single Game)
   const score = pState.score;

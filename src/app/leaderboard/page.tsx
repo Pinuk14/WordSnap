@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { getLeaderboard, LeaderboardEntry } from '@/lib/firebase/stats';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { signInAnonymouslyToFirebase } from '@/lib/firebase/auth';
+import { AuthBadge } from '@/components/auth/AuthBadge';
+import { useAuth } from '@/contexts/AuthContext';
 
 type Timeframe = 'daily' | 'weekly' | 'monthly' | 'allTime';
 
 export default function LeaderboardPage() {
+  const { isGuest, isAuthenticated } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState<Timeframe>('daily');
@@ -20,7 +22,6 @@ export default function LeaderboardPage() {
     const fetchBoard = async () => {
       setLoading(true);
       try {
-        await signInAnonymouslyToFirebase();
         const data = await getLeaderboard(timeframe);
         if (mounted) setEntries(data);
       } catch (err) {
@@ -30,9 +31,11 @@ export default function LeaderboardPage() {
       }
     };
     
-    fetchBoard();
+    if (isAuthenticated) {
+      fetchBoard();
+    }
     return () => { mounted = false; };
-  }, [timeframe]);
+  }, [timeframe, isAuthenticated]);
 
   const tabs: { id: Timeframe, label: string }[] = [
     { id: 'daily', label: 'DAILY' },
@@ -42,13 +45,25 @@ export default function LeaderboardPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center">
+    <div className="min-h-screen bg-background p-4 md:p-8 flex flex-col items-center relative">
+      <div className="absolute top-4 right-4 md:top-8 md:right-8 z-40">
+        <AuthBadge />
+      </div>
+
       <header className="w-full max-w-4xl flex justify-between items-center mb-8">
         <h1 className="font-display text-4xl md:text-6xl text-secondary drop-shadow-[4px_4px_0_#000]">LEADERBOARD</h1>
         <Link href="/">
           <Button variant="primary">HOME</Button>
         </Link>
       </header>
+
+      {isGuest && (
+        <div className="w-full max-w-4xl mb-6 bg-warning text-black border-4 border-black rounded-brutal p-4 shadow-[4px_4px_0_#000] text-center">
+          <p className="font-bold text-sm md:text-base">
+            👤 You&apos;re playing as a Guest. Sign in with Google to appear on the leaderboard and save your stats permanently!
+          </p>
+        </div>
+      )}
 
       <div className="w-full max-w-4xl mb-8 flex flex-wrap gap-2 md:gap-4 bg-black/20 p-2 md:p-4 rounded-xl border-2 border-black">
         {tabs.map(tab => (
