@@ -1,16 +1,18 @@
 import React from 'react';
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success';
+export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
-  children: React.ReactNode;
+  loading?: boolean;
 }
 
 export const Button: React.FC<ButtonProps> = ({ 
   variant = 'primary', 
+  loading = false,
   className = '', 
   children, 
+  disabled,
   ...props 
 }) => {
   const variantStyles: Record<ButtonVariant, string> = {
@@ -20,8 +22,11 @@ export const Button: React.FC<ButtonProps> = ({
     success: 'bg-success text-foreground'
   };
 
+  const isDisabled = disabled || loading;
+
   return (
     <button
+      disabled={isDisabled}
       className={`
         px-6 py-3
         border-4 border-black
@@ -31,14 +36,15 @@ export const Button: React.FC<ButtonProps> = ({
         font-display
         text-sm
         transition-all duration-150 ease-brutal
+        hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-[8px_8px_0_#000]
         active:translate-y-1 active:translate-x-1 active:shadow-brutal-pressed
-        disabled:opacity-50 disabled:cursor-not-allowed
+        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:translate-x-0 disabled:hover:shadow-brutal
         ${variantStyles[variant]}
         ${className}
       `}
       {...props}
     >
-      {children}
+      {loading ? 'LOADING...' : children}
     </button>
   );
 };

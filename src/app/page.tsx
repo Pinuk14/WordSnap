@@ -1,23 +1,47 @@
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import Link from 'next/link';
+import { Button } from '@/components/ui/Button';
 
 export default function Home() {
   return (
-    <main className="min-h-screen p-8 sm:p-20 flex flex-col items-center justify-center gap-12">
-      <div className="text-center space-y-4">
-        <h1 className="text-4xl md:text-6xl font-display text-primary drop-shadow-[4px_4px_0_#000]">WORDSNAP</h1>
-        <p className="text-xl">Real-time multiplayer word chain game.</p>
+    <main className="min-h-screen bg-background flex flex-col items-center justify-center p-8 text-center gap-12">
+      <div className="space-y-4">
+        <h1 className="font-display text-7xl md:text-9xl text-primary drop-shadow-[8px_8px_0_#000] tracking-wider uppercase transform -rotate-2">
+          WordSnap
+        </h1>
+        <p className="font-sans text-2xl md:text-3xl text-gray-300 font-bold max-w-2xl mx-auto">
+          The fast-paced word chaining game.
+        </p>
       </div>
 
-      <Card className="max-w-md w-full space-y-6">
-        <h2 className="text-xl font-display text-secondary mb-4 drop-shadow-[2px_2px_0_#000]">UI Components</h2>
-        <div className="flex flex-col gap-4">
-          <Button variant="primary">Primary Action</Button>
-          <Button variant="secondary">Secondary Action</Button>
-          <Button variant="danger">Danger Zone</Button>
-          <Button variant="success">Success State</Button>
+      <div className="flex flex-col gap-6 w-full max-w-md">
+        <Link href="/create" className="w-full">
+          <Button variant="danger" className="w-full text-2xl py-6 hover:scale-105 transition-transform">
+            CREATE ROOM
+          </Button>
+        </Link>
+        <Link href="/join" className="w-full">
+          <Button variant="primary" className="w-full text-2xl py-6 hover:scale-105 transition-transform">
+            JOIN ROOM
+          </Button>
+        </Link>
+        <Link href="/local" className="w-full">
+          <Button variant="secondary" className="w-full text-xl py-4">
+            PLAY LOCAL
+          </Button>
+        </Link>
+        <div className="flex gap-4 w-full">
+          <Link href="/leaderboard" className="flex-1">
+            <Button variant="primary" className="w-full text-lg py-4">
+              LEADERBOARD
+            </Button>
+          </Link>
+          <Link href="/stats" className="flex-1">
+            <Button variant="secondary" className="w-full text-lg py-4">
+              MY STATS
+            </Button>
+          </Link>
         </div>
-      </Card>
+      </div>
     </main>
   );
 }

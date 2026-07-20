@@ -1,0 +1,145 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { GameState, GameMode, PowerUpType, HintType } from '@/lib/game-engine/types';
+import { 
+  initializeGame, 
+  submitWord as engineSubmitWord,
+  loseLife as engineLoseLife,
+  usePowerUp as engineUsePowerUp,
+  useHint as engineUseHint
+} from '@/lib/game-engine/gameEngine';
+import { getTurnDuration } from '@/lib/game-engine/gameModes';
+import { loadDictionary, getDictionarySize } from '@/lib/game-engine/dictionary';
+import { loadCategoryDictionary, getAvailableCategories } from '@/lib/game-engine/categoryDictionary';
+import { useToast } from '@/components/ui/Toast';
+
+export function useLocalGame() {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const { addToast } = useToast();
+  
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load dictionaries
+  useEffect(() => {
+    async function load() {
+      if (getDictionarySize() > 0) {
+        setIsLoaded(true);
+        return;
+      }
+      try {
+        const res = await fetch('/dictionary/words-filtered.txt');
+        const text = await res.text();
+        loadDictionary(text);
+
+        const categories = ['animals', 'fruits', 'vegetables'];
+        for (const cat of categories) {
+          const catRes = await fetch(`/dictionary/categories/${cat}.json`);
+          const catWords = await catRes.json();
+          loadCategoryDictionary(cat, catWords);
+        }
+        setIsLoaded(true);
+      } catch (err) {
+        console.error('Failed to load dictionaries', err);
+        addToast('Failed to load game data', 'danger');
+      }
+    }
+    load();
+  }, [addToast]);
+
+  // Handle timer
+  useEffect(() => {
+    if (!gameState || gameState.status !== 'playing') {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
+    const turnDuration = getTurnDuration(gameState.mode) + (gameState.extraTimeAdded || 0);
+    
+    // We update UI every 100ms for smooth progress bar
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - gameState.currentTurnStartTime;
+      const remaining = Math.max(0, (turnDuration / 1000) - (elapsed / 1000));
+      setTimeRemaining(remaining);
+      
+      if (remaining <= 0) {
+        // Time out
+        const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
+        const newState = engineLoseLife(gameState, currentPlayerId);
+        setGameState(newState);
+        addToast('Time is up! Life lost.', 'danger');
+      }
+    }, 100);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [gameState, addToast]);
+
+  const startGame = useCallback((mode: GameMode, players: { id: string, name: string }[]) => {
+    const initialState = initializeGame('local-room', mode, players);
+    // In category mode, select a random category for the first turn
+    if (mode === 'category') {
+        const cats = getAvailableCategories();
+        initialState.currentCategory = cats[Math.floor(Math.random() * cats.length)];
+    }
+    setGameState(initialState);
+  }, []);
+
+  const submit = useCallback((word: string) => {
+    if (!gameState || gameState.status !== 'playing') return false;
+
+    const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
+    const result = engineSubmitWord(gameState, currentPlayerId, word);
+
+    if (result.isValid) {
+      const nextState = result.state;
+      // If category mode, change category every 5 turns
+      if (nextState.mode === 'category' && nextState.wordHistory.length % 5 === 0) {
+          const cats = getAvailableCategories();
+          nextState.currentCategory = cats[Math.floor(Math.random() * cats.length)];
+          addToast(`Category changed to ${nextState.currentCategory.toUpperCase()}!`, 'success');
+      }
+
+      setGameState(nextState);
+      return true;
+    } else {
+      addToast(result.error || 'Invalid word', 'danger');
+      return false;
+    }
+  }, [gameState, addToast]);
+
+  const activatePowerUp = useCallback((powerUp: PowerUpType) => {
+    if (!gameState) return;
+    const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
+    const result = engineUsePowerUp(gameState, currentPlayerId, powerUp);
+    
+    if (result.isValid) {
+      setGameState(result.state);
+    } else {
+      addToast(result.error || "Can't use powerup", 'warning');
+    }
+  }, [gameState, addToast]);
+
+  const activateHint = useCallback((hintType: HintType) => {
+    if (!gameState) return;
+    const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
+    const result = engineUseHint(gameState, currentPlayerId, hintType);
+    
+    if (result.error) {
+      addToast(result.error, 'warning');
+    } else {
+      setGameState(result.state);
+    }
+  }, [gameState, addToast]);
+
+  return {
+    isLoaded,
+    gameState,
+    timeRemaining,
+    startGame,
+    submit,
+    activatePowerUp,
+    activateHint
+  };
+}
