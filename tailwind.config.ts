@@ -42,11 +42,17 @@ const config: Config = {
         slideIn: {
           '0%': { transform: 'translateY(100px)', opacity: '0' },
           '100%': { transform: 'translateY(0)', opacity: '1' },
+        },
+        floatUp: {
+          '0%': { transform: 'translateY(0) scale(0.5)', opacity: '0' },
+          '20%': { transform: 'translateY(-20px) scale(1.2)', opacity: '1' },
+          '100%': { transform: 'translateY(-100px) scale(1)', opacity: '0' },
         }
       },
       animation: {
         shake: 'shake 0.4s ease-in-out',
         slideIn: 'slideIn 0.2s ease-out',
+        floatUp: 'floatUp 2.5s ease-out forwards',
       }
     },
   },

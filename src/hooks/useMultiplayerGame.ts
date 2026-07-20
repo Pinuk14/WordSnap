@@ -10,10 +10,11 @@ import {
   submitWord as engineSubmitWord,
   loseLife as engineLoseLife,
   usePowerUp as engineUsePowerUp,
-  useHint as engineUseHint
+  useHint as engineUseHint,
+  getRequiredLetter
 } from '@/lib/game-engine/gameEngine';
 import { getTurnDuration } from '@/lib/game-engine/gameModes';
-import { loadDictionary, getDictionarySize } from '@/lib/game-engine/dictionary';
+import { loadDictionary, getDictionarySize, generateHint } from '@/lib/game-engine/dictionary';
 import { loadCategoryDictionary, getAvailableCategories } from '@/lib/game-engine/categoryDictionary';
 import { useToast } from '@/components/ui/Toast';
 
@@ -130,7 +131,7 @@ export function useMultiplayerGame() {
     }
 
     const gs = roomState.gameState!;
-    const turnDuration = getTurnDuration(gs.mode) + (gs.extraTimeAdded || 0);
+    const turnDuration = (getTurnDuration(gs.mode) * 1000) + (gs.extraTimeAdded || 0);
     const isHost = roomState.hostId === userId;
 
     timerRef.current = setInterval(() => {
@@ -306,6 +307,20 @@ export function useMultiplayerGame() {
     if (result.error) {
       addToast(result.error, "warning");
       return;
+    }
+    
+    // Generate the actual hint payload
+    const requiredLetter = getRequiredLetter(currentGs);
+    if (requiredLetter) {
+       const usedWords = currentGs.wordHistory.map(w => w.word);
+       const hintWord = generateHint(requiredLetter, usedWords);
+       if (hintWord) {
+         addToast(`HINT: Try a word starting with ${hintWord.slice(0, 2).toUpperCase()}... (Length: ${hintWord.length})`, 'success');
+       } else {
+         addToast(`No hints available!`, 'warning');
+       }
+    } else {
+       addToast(`HINT: You can play any word right now!`, 'success');
     }
     
     setRoomState({ ...roomState, gameState: result.state });

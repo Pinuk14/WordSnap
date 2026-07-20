@@ -19,6 +19,10 @@ export function GameClient() {
   const [isInvalid, setIsInvalid] = useState(false);
   const { addToast } = useToast();
   
+  const [floatingScores, setFloatingScores] = useState<{id: string, text: string, breakdown?: string[], color: string}[]>([]);
+  const [showEventInfo, setShowEventInfo] = useState(false);
+  const [hideGameOverModal, setHideGameOverModal] = useState(false);
+  
   // Achievement Trackers
   const [unlockedAchievements, setUnlockedAchievements] = useState<Set<string>>(new Set());
 
@@ -57,6 +61,28 @@ export function GameClient() {
       setUnlockedAchievements(newAchievements);
     }
   }, [gameState?.wordHistory?.length, gameState, unlockedAchievements, addToast]);
+
+  const prevHistoryLength = React.useRef(0);
+  React.useEffect(() => {
+    if (!gameState) return;
+    const history = gameState.wordHistory || [];
+    if (history.length > prevHistoryLength.current && history.length > 0) {
+      const newWord = history[history.length - 1];
+      const id = Math.random().toString(36);
+      
+      const text = `+${newWord.points}`;
+      let color = 'text-success';
+      if (gameState.currentEvent === 'double_points' || gameState.players[newWord.playerId]?.activePowerUp === 'double_score') {
+        color = 'text-secondary';
+      }
+      
+      setFloatingScores(prev => [...prev, { id, text, breakdown: newWord.pointBreakdown, color }]);
+      setTimeout(() => {
+        setFloatingScores(prev => prev.filter(s => s.id !== id));
+      }, 2500);
+    }
+    prevHistoryLength.current = history.length;
+  }, [gameState?.wordHistory?.length, gameState?.currentEvent]);
 
   if (!isLoaded) {
     return (
@@ -103,8 +129,8 @@ export function GameClient() {
   }
 
   const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
-  const turnDuration = getTurnDuration(gameState.mode);
-  const timePercentage = Math.max(0, (timeRemaining / turnDuration) * 100);
+  const turnDuration = getTurnDuration(gameState.mode) + ((gameState.extraTimeAdded || 0) / 1000);
+  const timePercentage = Math.min(100, Math.max(0, (timeRemaining / turnDuration) * 100));
 
   const wordHistory = gameState.wordHistory || [];
   const lastWord = wordHistory.length > 0 
@@ -136,12 +162,12 @@ export function GameClient() {
                 <div className="flex flex-col">
                   <span className="font-bold text-lg leading-tight text-black flex items-center gap-1">
                     {p.name}
-                    {p.streak >= 3 && <span className="text-xl ml-1" title={`${p.streak} Streak!`}>🔥</span>}
+                    {p.streak >= 3 && <span className="text-base md:text-xl ml-1 font-display text-danger drop-shadow-[1px_1px_0_#000]" title={`${p.streak} Streak!`}>{p.streak}🔥</span>}
                   </span>
                   <span className="text-sm font-display text-primary">{p.score} PTS</span>
                   <div className="flex gap-1 mt-1">
                     {Array.from({ length: Math.max(0, p.lives) }).map((_, i) => (
-                      <div key={i} className="w-3 h-3 bg-danger border-2 border-black rotate-45" />
+                      <div key={i} className="w-3 h-3 bg-danger border border-black rotate-45" />
                     ))}
                   </div>
                 </div>
@@ -155,13 +181,26 @@ export function GameClient() {
             CATEGORY: {gameState.currentCategory.toUpperCase()}
           </Badge>
         )}
+        
+        {gameState.status === 'finished' && hideGameOverModal && (
+          <Button variant="secondary" onClick={() => setHideGameOverModal(false)} className="ml-4">
+            SHOW RESULTS
+          </Button>
+        )}
       </header>
 
       {gameState.currentEvent && (
-        <div className="w-full bg-danger text-white border-y-4 border-black text-center py-2 animate-pulse shadow-[0px_4px_0_#000] z-10 mb-4">
-          <h3 className="font-display text-2xl tracking-widest uppercase">
+        <div className="fixed top-4 right-4 md:top-8 md:right-8 bg-danger text-white border-4 border-black text-center px-4 py-2 shadow-[4px_4px_0_#000] z-50 flex items-center justify-center gap-2 rounded-brutal">
+          <h3 className="font-display text-sm md:text-xl tracking-widest uppercase animate-pulse">
             EVENT: {gameState.currentEvent.replace('_', ' ')}
           </h3>
+          <button 
+            onClick={() => setShowEventInfo(true)}
+            className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white text-danger font-bold text-xs md:text-sm border-2 border-black flex items-center justify-center hover:scale-110 transition-transform"
+            title="Event Info"
+          >
+            i
+          </button>
         </div>
       )}
 
@@ -174,10 +213,68 @@ export function GameClient() {
       )}
 
       {/* Main Game Area */}
-      <main className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto w-full gap-12">
-        <div className="flex flex-col items-center gap-6">
+      <main className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto w-full gap-8 lg:gap-12 mt-8 relative">
+        
+        {/* Desktop Side Panel: Actions */}
+        {gameState.status === 'playing' && (
+          <div className="hidden xl:flex absolute top-0 -left-[320px] w-72 flex-col gap-4 bg-card p-6 rounded-brutal border-4 border-black shadow-brutal">
+            <h3 className="font-display text-xl text-primary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2">POWER-UPS</h3>
+            <p className="font-bold text-sm text-gray-700">{gameState.players[currentPlayerId].name}&apos;s Inventory:</p>
+            
+            <div className="flex flex-col gap-2">
+              {gameState.players[currentPlayerId]?.powerUps?.map((pu, idx) => (
+                <Button 
+                  key={idx} 
+                  variant="secondary" 
+                  className="w-full text-sm hover:animate-shake"
+                  onClick={() => activatePowerUp(pu)}
+                >
+                  {pu.replace('_', ' ').toUpperCase()}
+                </Button>
+              ))}
+              {(!gameState.players[currentPlayerId]?.powerUps || gameState.players[currentPlayerId].powerUps.length === 0) && (
+                <span className="text-sm text-gray-500 italic">None available.</span>
+              )}
+            </div>
+            
+            <h3 className="font-display text-xl text-secondary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2 mt-4">HINTS</h3>
+            <div className="flex items-center justify-between">
+              <span className="font-bold">Remaining: {gameState.players[currentPlayerId]?.hints || 0}</span>
+              <Button 
+                  variant="primary" 
+                  disabled={gameState.players[currentPlayerId]?.hints <= 0}
+                  onClick={() => activateHint('common_continuation')}
+                  className="px-3 py-1 text-sm"
+              >
+                USE HINT
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Floating Scores Container */}
+        <div className="absolute top-1/4 right-10 md:right-20 xl:-right-20 pointer-events-none z-50 flex flex-col items-end gap-1">
+          {floatingScores.map(score => (
+            <div key={score.id} className="animate-floatUp flex flex-col items-end">
+              <span className={`font-display text-4xl md:text-6xl ${score.color} drop-shadow-[4px_4px_0_#000] whitespace-nowrap`}>
+                {score.text}
+              </span>
+              {score.breakdown && score.breakdown.length > 0 && (
+                <div className="flex flex-col gap-1 mt-1 items-end">
+                  {score.breakdown.map((line, i) => (
+                    <span key={i} className="text-sm md:text-base font-bold bg-white text-black px-2 border-2 border-black rotate-[2deg] drop-shadow-[2px_2px_0_#FF2E93] whitespace-nowrap">
+                      {line}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-col items-center gap-4 md:gap-6 w-full">
           <Badge variant="primary">LAST WORD</Badge>
-          <h2 className="font-display text-6xl md:text-8xl text-white uppercase tracking-widest drop-shadow-[4px_4px_0_#FF2E93] text-center break-all">
+          <h2 className="font-display text-5xl md:text-7xl text-white uppercase tracking-widest drop-shadow-[4px_4px_0_#FF2E93] text-center break-all px-4">
             {lastWord}
           </h2>
           {requiredLetter !== 'ANY' && (
@@ -193,7 +290,7 @@ export function GameClient() {
           label={`${Math.ceil(timeRemaining)}s`} 
         />
 
-        <form onSubmit={handleSubmit} className="w-full flex gap-4">
+        <form onSubmit={handleSubmit} className="w-full flex flex-col sm:flex-row gap-4">
           <Input 
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -208,11 +305,11 @@ export function GameClient() {
           </Button>
         </form>
 
-        {/* Action Bar (Power-Ups & Hints) */}
+        {/* Mobile Action Bar */}
         {gameState.status === 'playing' && (
-          <div className="w-full flex flex-wrap justify-between items-center bg-card p-4 rounded-xl border-4 border-black shadow-[4px_4px_0_#000]">
+          <div className="flex xl:hidden w-full flex-wrap justify-between items-center bg-card p-4 rounded-brutal border-4 border-black shadow-brutal">
             <div className="flex gap-2 items-center flex-wrap">
-              <span className="font-display text-xl mr-2">POWER-UPS ({gameState.players[currentPlayerId].name}):</span>
+              <span className="font-display text-lg mr-2">POWER-UPS:</span>
               {gameState.players[currentPlayerId]?.powerUps?.map((pu, idx) => (
                 <Button 
                   key={idx} 
@@ -229,7 +326,7 @@ export function GameClient() {
             </div>
             
             <div className="flex gap-4 items-center mt-4 md:mt-0">
-               <span className="font-display text-xl">HINTS ({gameState.players[currentPlayerId]?.hints || 0}):</span>
+               <span className="font-display text-lg">HINTS ({gameState.players[currentPlayerId]?.hints || 0}):</span>
                <Button 
                   variant="primary" 
                   disabled={gameState.players[currentPlayerId]?.hints <= 0}
@@ -243,26 +340,26 @@ export function GameClient() {
         )}
 
         {/* Word History */}
-        <div className="w-full mt-4 bg-black/20 p-4 rounded-xl h-48 overflow-y-auto border-2 border-black flex flex-col gap-2">
-          <h3 className="font-display text-xl text-secondary drop-shadow-[2px_2px_0_#000]">WORD HISTORY</h3>
+        <div className="w-full mt-4 bg-black/20 p-4 rounded-brutal h-48 overflow-y-auto border-4 border-black flex flex-col gap-2 shadow-brutal">
+          <h3 className="font-display text-xl text-secondary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2 sticky top-0 bg-background/90 backdrop-blur">WORD HISTORY</h3>
           {[...gameState.wordHistory].reverse().map((sub, idx) => (
-            <div key={idx} className="flex justify-between items-center bg-background p-2 rounded border border-gray-800">
-              <span className="font-bold text-lg">{sub.word.toUpperCase()}</span>
-              <span className="text-sm text-gray-400">
-                {gameState.players[sub.playerId].name} (+{sub.points} pts)
+            <div key={idx} className="flex justify-between items-center bg-card p-2 rounded-brutal border-2 border-black">
+              <span className="font-bold text-lg text-black">{sub.word.toUpperCase()}</span>
+              <span className="text-sm font-bold text-primary">
+                {gameState.players[sub.playerId].name} (+{sub.points})
               </span>
             </div>
           ))}
           {gameState.wordHistory.length === 0 && (
-            <span className="text-gray-500 italic">No words played yet.</span>
+            <span className="text-gray-500 italic p-2">No words played yet.</span>
           )}
         </div>
       </main>
 
       {/* Winner Modal */}
       <Modal 
-        isOpen={gameState.status === 'finished'} 
-        onClose={() => {}} 
+        isOpen={gameState.status === 'finished' && !hideGameOverModal} 
+        onClose={() => setHideGameOverModal(true)} 
         title="GAME OVER"
       >
         <div className="flex flex-col items-center gap-6 text-center">
@@ -276,6 +373,46 @@ export function GameClient() {
           )}
           <Button onClick={() => setIsStartModalOpen(true)} variant="primary" className="w-full mt-4 text-xl">
             PLAY AGAIN
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Event Info Modal */}
+      <Modal 
+        isOpen={showEventInfo} 
+        onClose={() => setShowEventInfo(false)} 
+        title="BONUS EVENTS"
+      >
+        <div className="flex flex-col gap-4 text-left p-2">
+          <p className="font-bold mb-2">Every 5 turns, a random event might trigger!</p>
+          
+          <div className="bg-card p-3 rounded-brutal border-2 border-black">
+            <h4 className="font-display text-primary text-xl">DOUBLE POINTS</h4>
+            <p className="text-sm">Every valid word earns double its normal score.</p>
+          </div>
+          
+          <div className="bg-card p-3 rounded-brutal border-2 border-black">
+            <h4 className="font-display text-secondary text-xl">LONG WORD BONUS</h4>
+            <p className="text-sm">Words with 8 or more letters earn an extra +15 points.</p>
+          </div>
+          
+          <div className="bg-card p-3 rounded-brutal border-2 border-black">
+            <h4 className="font-display text-success text-xl">REVERSE CHAIN</h4>
+            <p className="text-sm">You must start your word with the <strong>FIRST</strong> letter of the previous word (instead of the last).</p>
+          </div>
+          
+          <div className="bg-card p-3 rounded-brutal border-2 border-black">
+            <h4 className="font-display text-warning text-xl">VOWEL FRENZY</h4>
+            <p className="text-sm">Words must strictly begin with a Vowel (A, E, I, O, U) regardless of the previous word!</p>
+          </div>
+          
+          <div className="bg-card p-3 rounded-brutal border-2 border-black">
+            <h4 className="font-display text-purple-400 text-xl">RAPID FIRE</h4>
+            <p className="text-sm">You only have 50% of the normal time to submit a word!</p>
+          </div>
+          
+          <Button onClick={() => setShowEventInfo(false)} variant="primary" className="w-full mt-2">
+            GOT IT
           </Button>
         </div>
       </Modal>

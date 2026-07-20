@@ -14,7 +14,7 @@ export interface GameEngineResult {
   isValid?: boolean;
 }
 
-const ALL_POWERUPS: PowerUpType[] = ['shield', 'extra_time', 'double_score', 'life_restore', 'letter_peek'];
+const ALL_POWERUPS: PowerUpType[] = ['shield', 'extra_time', 'double_score', 'life_restore', 'letter_switch'];
 const ALL_EVENTS: BonusEventType[] = ['rapid_fire', 'double_points', 'long_word_bonus', 'reverse_chain', 'vowel_frenzy'];
 const ALPHABET = 'ABCDEFGHIJKLMNOPRSTUVWXY'; // Exclude Q, Z for deadlock recovery (keep it playable)
 
@@ -122,14 +122,22 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
 
   // Calculate base points
   let points = calculateWordScore(word, state.mode, pState.streak);
+  const breakdown: string[] = [`+${points} Base`];
   
   // Apply Events
-  if (state.currentEvent === 'double_points') points *= 2;
-  if (state.currentEvent === 'long_word_bonus' && word.length >= 8) points += 15;
+  if (state.currentEvent === 'double_points') {
+    points *= 2;
+    breakdown.push(`x2 Double Event`);
+  }
+  if (state.currentEvent === 'long_word_bonus' && word.length >= 8) {
+    points += 15;
+    breakdown.push(`+15 Long Word`);
+  }
 
   // Apply Power-Ups
   if (pState.activePowerUp === 'double_score') {
     points *= 2;
+    breakdown.push(`x2 Double Score`);
   }
 
   // Update streaks and rewards
@@ -142,12 +150,19 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   }
 
   // Streak Bonuses
-  if (player.streak === 3) points += 5;
-  if (player.streak === 5) points += 10;
+  if (player.streak === 3) {
+    points += 5;
+    breakdown.push(`+5 Streak 3!`);
+  }
+  if (player.streak === 5) {
+    points += 10;
+    breakdown.push(`+10 Streak 5!`);
+  }
   if (player.streak === 8) {
     const seed = generateGameSeed(state.currentTurnStartTime, state.wordHistory.length);
     if (player.powerUps.length < 2) {
       player.powerUps.push(pickRandom(ALL_POWERUPS, seed));
+      breakdown.push(`+Power-Up (Streak 8!)`);
     }
   }
 
@@ -156,6 +171,7 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   const newMilestone = Math.floor((pState.score + points) / 30);
   if (newMilestone > prevMilestone && player.powerUps.length < 2) {
     player.powerUps.push(pickRandom(ALL_POWERUPS, generateGameSeed(state.currentTurnStartTime + 1, state.wordHistory.length)));
+    breakdown.push(`+Power-Up (Score Milestone!)`);
   }
 
   player.score += points;
@@ -168,7 +184,8 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
     word: normalizeWord(word),
     playerId,
     timestamp: Date.now(),
-    points
+    points,
+    pointBreakdown: breakdown
   };
   newState.wordHistory.push(submission);
 
@@ -274,6 +291,10 @@ export function usePowerUp(state: GameState & { extraTimeAdded?: number }, playe
     newState.extraTimeAdded = (newState.extraTimeAdded || 0) + 5000;
   } else if (powerUp === 'life_restore') {
     player.lives++;
+  } else if (powerUp === 'letter_switch') {
+    const seed = generateGameSeed(Date.now(), player.stats.powerUpsUsed);
+    newState.deadlockLetterOverride = pickRandom(ALPHABET.split(''), seed);
+    newState.deadlockCounter = 0;
   } else {
     player.activePowerUp = powerUp;
   }
@@ -300,3 +321,17 @@ export function useHint(state: GameState, playerId: string, hintType: HintType):
 
 export { calculateWordScore as calculateScore } from './scoring';
 export { checkWinCondition as getWinner } from './winConditions';
+
+export function getRequiredLetter(state: GameState): string {
+  if (state.deadlockLetterOverride) {
+    return state.deadlockLetterOverride.toLowerCase();
+  }
+  if (state.wordHistory.length > 0) {
+    const lastWord = state.wordHistory[state.wordHistory.length - 1].word;
+    if (state.currentEvent === 'reverse_chain') {
+      return lastWord.charAt(0).toLowerCase();
+    }
+    return lastWord.charAt(lastWord.length - 1).toLowerCase();
+  }
+  return '';
+}
