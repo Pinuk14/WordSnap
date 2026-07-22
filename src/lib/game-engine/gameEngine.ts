@@ -81,8 +81,22 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   // Wait, validator needs to know the required letter. If reverse_chain is active, the required letter changes.
   // We'll let the validator do standard, but we must override if needed.
   // To keep it simple, we check required letter manually if reverse_chain or deadlock override is active.
+  const validation = validateSubmission(word, state.wordHistory);
+  
+  // Custom Validation for Event constraints
+  if (state.currentEvent === 'vowel_frenzy' && !/^[AEIOU]/i.test(word)) {
+    pState.streak = 0;
+    return { state: loseLife(state, playerId), isValid: false, error: 'Vowel Frenzy: Word must start with a vowel!' };
+  }
+
+  // If validation fails for reasons OTHER than start letter, return it
+  if (!validation.isValid && !validation.error?.includes('start with')) {
+    pState.streak = 0;
+    return { state: loseLife(state, playerId), isValid: false, error: validation.error };
+  }
+
+  // Determine the expected letter (override standard validation if needed)
   let expectedLetter = '';
-  // Bypass expected letter check if Vowel Frenzy is active because ANY vowel is allowed
   if (state.currentEvent !== 'vowel_frenzy') {
     if (state.deadlockLetterOverride) {
       expectedLetter = state.deadlockLetterOverride;
@@ -95,25 +109,8 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   }
 
   if (expectedLetter && word.charAt(0).toLowerCase() !== expectedLetter.toLowerCase()) {
-    return { state: loseLife(state, playerId), isValid: false, error: `Word must start with ${expectedLetter.toUpperCase()}` };
-  }
-
-  const validation = validateSubmission(word, state.wordHistory);
-  // We already checked start letter, so if standard validation failed on it, we might need to suppress?
-  // validateSubmission checks start letter by default! We must bypass it if reverse_chain/deadlock.
-  // Actually, validateSubmission checks the LAST letter of the last word.
-  // We should pass an override to validateSubmission if possible, but for now we can just rely on standard validate.
-  // Let's assume validateSubmission does the standard check. If reverse_chain, we must bypass its letter check.
-  
-  if (!validation.isValid && validation.error?.includes('start with')) {
-    if (state.currentEvent !== 'reverse_chain' && state.currentEvent !== 'vowel_frenzy' && !state.deadlockLetterOverride) {
-      // It's a true error
-      pState.streak = 0;
-      return { state: loseLife(state, playerId), isValid: false, error: validation.error };
-    }
-  } else if (!validation.isValid) {
     pState.streak = 0;
-    return { state: loseLife(state, playerId), isValid: false, error: validation.error };
+    return { state: loseLife(state, playerId), isValid: false, error: `Word must start with '${expectedLetter.toUpperCase()}'` };
   }
 
   if (state.mode === 'category' && state.currentCategory) {
@@ -256,16 +253,20 @@ export function nextTurn(state: GameState): GameState {
   return newState;
 }
 
-export function loseLife(state: GameState & { extraTimeAdded?: number }, playerId: string): GameState {
+export function loseLife(state: GameState & { extraTimeAdded?: number }, playerId: string, forceEliminate = false): GameState {
   const newState = JSON.parse(JSON.stringify(state)) as GameState & { extraTimeAdded?: number };
   const player = newState.players[playerId];
 
-  if (player.activePowerUp === 'shield') {
+  if (!forceEliminate && player.activePowerUp === 'shield') {
     // Shield blocks life loss, but streak breaks and turn passes
     player.streak = 0;
     // Note: Shield is not consumed here, it lasts for 1 complete round (managed in nextTurn)
   } else {
-    player.lives -= 1;
+    if (forceEliminate) {
+      player.lives = 0;
+    } else {
+      player.lives -= 1;
+    }
     player.streak = 0;
     if (player.lives <= 0) {
       player.isEliminated = true;
@@ -303,7 +304,7 @@ export function loseLife(state: GameState & { extraTimeAdded?: number }, playerI
 }
 
 export function eliminatePlayer(state: GameState, playerId: string): GameState {
-  return loseLife(state, playerId); // In this advanced engine, eliminate behaves like losing a life to 0
+  return loseLife(state, playerId, true); // Force eliminate to 0 lives
 }
 
 export function usePowerUp(state: GameState & { extraTimeAdded?: number }, playerId: string, powerUp: PowerUpType): GameEngineResult {

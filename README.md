@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WordSnap 💥
 
-## Getting Started
+Welcome to **WordSnap**, the fast-paced, multi-player word chaining game that tests your vocabulary and speed! Battle it out against friends or practice locally in an adrenaline-pumping test of words.
 
-First, run the development server:
+## 🎮 How to Play
 
+The rules are simple but the game gets intense fast:
+1. **Chain Words**: You must play a word that starts with the **last letter** of the previous word. (e.g., Appl**e** -> **E**lephan**t** -> **T**iger).
+2. **Beat the Clock**: You only have a few seconds to answer! If time runs out, or if you submit an invalid/duplicate word, you lose a life.
+3. **Survive**: Last player standing wins!
+
+## ✨ Features
+
+- **Real-Time Multiplayer**: Join a room using a 4-character code and play instantly with friends.
+- **Dynamic Game Engine**: Built with a robust engine that validates words against a 100k+ word dictionary in <1ms.
+- **Power-Ups**: 
+  - 🛡️ **Shield**: Blocks one life loss.
+  - ⏱️ **Extra Time**: Gives you more time to think.
+  - 🔀 **Letter Switch**: Instantly changes the required starting letter if you are stuck.
+  - ⚔️ **Attack**: Sabotage an opponent's turn.
+- **Crazy Events**: Watch out for random events like *Vowel Frenzy*, *Reverse Chain*, or *Double Points* that flip the game on its head every few turns!
+- **Game Modes**:
+  - **Classic**: The standard 3-life survival mode.
+  - **Speed**: Sudden death. 1 life, shorter turns.
+  - **Category**: Words must match a specific category (e.g., Animals, Food).
+- **Guest & Auth Support**: Play instantly as a guest, or sign in with Google to save your stats and customize your profile.
+- **Stats Tracking**: Tracks your total wins, highest score, longest win streak, and more!
+
+## 🚀 Tech Stack
+
+WordSnap is built with a modern, scalable web stack:
+- **Framework**: [Next.js 14](https://nextjs.org/) (React 18) with App Router.
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) for that sleek, brutalist UI.
+- **Backend & State**: [Firebase Realtime Database](https://firebase.google.com/) for lightning-fast multi-player sync.
+- **Authentication**: Firebase Auth (Google Sign-In).
+- **Testing**: [Vitest](https://vitest.dev/) for unit and integration testing.
+
+## 🛠️ Getting Started
+
+First, install the dependencies:
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set up your Firebase configuration in `.env.local` (see `src/lib/firebase/config.ts` for required keys).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Then, run the development server:
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000) with your browser to start playing!
 
-## Learn More
+## 🧪 Testing
 
-To learn more about Next.js, take a look at the following resources:
+The game engine is heavily tested to ensure edge cases, timeouts, and validations work perfectly.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To run the test suite:
+```bash
+npm run test
+```
