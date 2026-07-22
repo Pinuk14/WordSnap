@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { AuthBadge } from '@/components/auth/AuthBadge';
 import { useAuth } from '@/contexts/AuthContext';
 
-type Timeframe = 'daily' | 'weekly' | 'monthly' | 'allTime';
+type Timeframe = 'daily' | 'weekly' | 'monthly' | 'allTime' | 'mmr';
 
 export default function LeaderboardPage() {
   const { isGuest, isAuthenticated } = useAuth();
@@ -41,7 +41,8 @@ export default function LeaderboardPage() {
     { id: 'daily', label: 'DAILY' },
     { id: 'weekly', label: 'WEEKLY' },
     { id: 'monthly', label: 'MONTHLY' },
-    { id: 'allTime', label: 'ALL TIME' }
+    { id: 'allTime', label: 'ALL TIME' },
+    { id: 'mmr', label: 'RANKED (MMR)' }
   ];
 
   return (
@@ -81,13 +82,51 @@ export default function LeaderboardPage() {
         ))}
       </div>
 
+      {/* Podium for Top 3 */}
+      {!loading && entries.length > 0 && (
+        <div className="w-full max-w-4xl flex justify-center items-end gap-2 md:gap-6 h-64 mb-8 pt-8">
+          {/* 2nd Place */}
+          {entries[1] && (
+            <div className="flex flex-col items-center w-24 md:w-32 transition-transform hover:-translate-y-2">
+              <span className="font-bold text-sm md:text-lg truncate w-full text-center mb-1">{entries[1].playerName}</span>
+              <Badge variant="secondary" className="mb-2 text-xs md:text-sm">{timeframe === 'mmr' ? Math.round(entries[1].mmr || 1000) : entries[1].score}</Badge>
+              <div className="w-full h-32 bg-[#E5E0D8] border-4 border-black rounded-t-xl flex justify-center pt-4 shadow-[4px_0_0_#000]">
+                <span className="font-display text-4xl text-black/50">2</span>
+              </div>
+            </div>
+          )}
+          
+          {/* 1st Place */}
+          {entries[0] && (
+            <div className="flex flex-col items-center w-28 md:w-36 z-10 transition-transform hover:-translate-y-2">
+              <span className="font-bold text-base md:text-xl truncate w-full text-center mb-1 text-primary">{entries[0].playerName}</span>
+              <Badge variant="primary" className="mb-2 text-sm md:text-base scale-110">{timeframe === 'mmr' ? Math.round(entries[0].mmr || 1000) : entries[0].score}</Badge>
+              <div className="w-full h-40 bg-secondary border-4 border-black rounded-t-xl flex justify-center pt-4 shadow-[4px_0_0_#000]">
+                <span className="font-display text-5xl text-black">1</span>
+              </div>
+            </div>
+          )}
+
+          {/* 3rd Place */}
+          {entries[2] && (
+            <div className="flex flex-col items-center w-24 md:w-32 transition-transform hover:-translate-y-2">
+              <span className="font-bold text-sm md:text-lg truncate w-full text-center mb-1">{entries[2].playerName}</span>
+              <Badge variant="danger" className="mb-2 text-xs md:text-sm">{timeframe === 'mmr' ? Math.round(entries[2].mmr || 1000) : entries[2].score}</Badge>
+              <div className="w-full h-24 bg-[#D4A373] border-4 border-black rounded-t-xl flex justify-center pt-4 shadow-[4px_0_0_#000]">
+                <span className="font-display text-4xl text-black/50">3</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="w-full max-w-4xl bg-card border-4 border-black rounded-brutal shadow-[12px_12px_0_#000] overflow-hidden">
         <div className="bg-primary p-4 border-b-4 border-black flex items-center justify-between text-foreground">
           <div className="flex gap-4 w-1/2 md:w-1/3">
             <span className="font-display text-xl w-12 text-center">#</span>
             <span className="font-display text-xl">PLAYER</span>
           </div>
-          <span className="font-display text-xl text-right w-1/3">HIGH SCORE</span>
+          <span className="font-display text-xl text-right w-1/3">{timeframe === 'mmr' ? 'MMR' : 'HIGH SCORE'}</span>
         </div>
         
         <div className="flex flex-col min-h-[400px]">
@@ -113,7 +152,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="w-1/3 text-right">
                   <Badge variant={idx === 0 ? 'primary' : 'secondary'} className="text-xl px-4 py-2">
-                    {entry.score}
+                    {timeframe === 'mmr' ? Math.round(entry.mmr || 1000) : entry.score}
                   </Badge>
                 </div>
               </div>

@@ -19,12 +19,14 @@ export interface UserStats {
   powerUpsUsed: number;
   perfectRounds: number;
   deadlocksSurvived: number;
+  mmr: number;
 }
 
 export interface LeaderboardEntry {
   userId: string;
   playerName: string;
   score: number;
+  mmr?: number;
 }
 
 const getDailyStr = () => {
@@ -61,9 +63,21 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
   const myWords = (gameState.wordHistory || []).filter(w => w.playerId === userId);
   const myHighestWord = myWords.reduce((best, curr) => (!best || curr.points > best.points ? curr : best), null as {word: string, points: number, playerId: string} | null);
 
+  // Fetch opponent MMRs to calculate Elo
+  const opponentIds = Object.keys(gameState.players).filter(id => id !== userId);
+  let avgOpponentMmr = 1000;
+  if (opponentIds.length > 0) {
+    let totalOpponentMmr = 0;
+    for (const oppId of opponentIds) {
+      const oppStats = await getPersonalStats(oppId);
+      totalOpponentMmr += (oppStats?.mmr || 1000);
+    }
+    avgOpponentMmr = totalOpponentMmr / opponentIds.length;
+  }
+
   // Update Personal Stats
   const statsRef = ref(db, `stats/users/${userId}`);
-  await runTransaction(statsRef, (current: UserStats | null) => {
+  const statsTx = await runTransaction(statsRef, (current: UserStats | null) => {
     const stats: UserStats = current || {
       gamesPlayed: 0,
       wins: 0,
@@ -78,8 +92,11 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
       hintsUsed: 0,
       powerUpsUsed: 0,
       perfectRounds: 0,
-      deadlocksSurvived: 0
+      deadlocksSurvived: 0,
+      mmr: 1000
     };
+
+    if (stats.mmr === undefined) stats.mmr = 1000;
 
     stats.gamesPlayed++;
     if (isWinner) {
@@ -117,6 +134,14 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
 
     stats.playerName = playerName; // update to latest name
 
+    // Elo Calculation
+    if (opponentIds.length > 0) {
+      const K = 32;
+      const expected = 1 / (1 + Math.pow(10, (avgOpponentMmr - stats.mmr) / 400));
+      let result = isDraw ? 0.5 : (isWinner ? 1 : 0);
+      stats.mmr += K * (result - expected);
+    }
+
     return stats;
   });
 
@@ -151,6 +176,17 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
     });
   }
 
+  // Update MMR Leaderboard
+  /*
+  if (statsTx.committed) {
+    const newMmr = statsTx.snapshot.val().mmr;
+    const mmrRef = ref(db, `leaderboards/mmr/${userId}`);
+    await runTransaction(mmrRef, () => {
+      return { score: 0, mmr: newMmr, playerName, userId }; // score is irrelevant here but required by interface
+    });
+  }
+  */
+
   // Mark as recorded
   if (typeof window !== 'undefined') {
     localStorage.setItem(localKey, 'true');
@@ -162,13 +198,14 @@ export async function getPersonalStats(userId: string): Promise<UserStats | null
   return snap.exists() ? snap.val() : null;
 }
 
-export async function getLeaderboard(timeframe: 'daily' | 'weekly' | 'monthly' | 'allTime'): Promise<LeaderboardEntry[]> {
+export async function getLeaderboard(timeframe: 'daily' | 'weekly' | 'monthly' | 'allTime' | 'mmr'): Promise<LeaderboardEntry[]> {
   let path = `leaderboards/${timeframe}`;
   if (timeframe === 'daily') path += `/${getDailyStr()}`;
   else if (timeframe === 'weekly') path += `/${getWeeklyStr()}`;
   else if (timeframe === 'monthly') path += `/${getMonthlyStr()}`;
 
-  const lbQuery = query(ref(db, path), orderByChild('score'), limitToLast(50));
+  const orderBy = timeframe === 'mmr' ? 'mmr' : 'score';
+  const lbQuery = query(ref(db, path), orderByChild(orderBy), limitToLast(50));
   const snap = await get(lbQuery);
   
   if (!snap.exists()) return [];

@@ -40,12 +40,14 @@ export default function Home() {
           </Button>
         </Link>
         <div className="flex gap-4 w-full">
+          {/* Hiding leaderboard for now
           <Link href="/leaderboard" className="flex-1" aria-label="View global leaderboards">
             <Button variant="primary" className="w-full text-base sm:text-lg py-4">
               LEADERBOARD
             </Button>
           </Link>
-          <Link href="/stats" className="flex-1" aria-label="View your personal stats">
+          */}
+          <Link href="/stats" className="w-full" aria-label="View your personal stats">
             <Button variant="secondary" className="w-full text-base sm:text-lg py-4">
               MY STATS
             </Button>
