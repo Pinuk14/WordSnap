@@ -11,7 +11,7 @@ import {
   loseLife as engineLoseLife,
   usePowerUp as engineUsePowerUp,
   useHint as engineUseHint,
-  useAttackPowerup,
+  useAttackPowerup as engineUseAttackPowerup,
   getRequiredLetter
 } from '@/lib/game-engine/gameEngine';
 import { getTurnDuration } from '@/lib/game-engine/gameModes';
@@ -189,7 +189,8 @@ export function useMultiplayerGame() {
         gameState: null
       });
       setRoomId(newRoomId);
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error('Failed to create room', err);
       addToast(err.message || 'Failed to create room. Permission denied.', 'danger');
     }
@@ -210,7 +211,8 @@ export function useMultiplayerGame() {
     try {
       await set(ref(db, `rooms/${code}/players/${userId}`), { name: safeName });
       setRoomId(code);
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error('Failed to join room', err);
       addToast(err.message || 'Failed to join room. Room might be full or closed.', 'danger');
     }
@@ -254,7 +256,8 @@ export function useMultiplayerGame() {
         mode: mode,
         gameState: initialState
       });
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       console.error('Failed to start game', err);
       addToast(err.message || 'Failed to start game.', 'danger');
     }
@@ -396,7 +399,7 @@ export function useMultiplayerGame() {
     const currentGs = roomState.gameState;
     
     // Optimistic
-    const result = useAttackPowerup(currentGs, attackerId, targetId);
+    const result = engineUseAttackPowerup(currentGs, attackerId, targetId);
     if (!result.isValid) {
       addToast(result.error || "Attack failed", "warning");
       return;
@@ -408,7 +411,7 @@ export function useMultiplayerGame() {
     // Transaction
     runTransaction(ref(db, `rooms/${roomId}/gameState`), (serverGs: GameState | null) => {
       if (!serverGs) return;
-      return useAttackPowerup(serverGs, attackerId, targetId).state;
+      return engineUseAttackPowerup(serverGs, attackerId, targetId).state;
     });
   }, [roomId, userId, roomState, addToast]);
 

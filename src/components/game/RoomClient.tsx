@@ -7,7 +7,6 @@ import { useMultiplayerGame } from '@/hooks/useMultiplayerGame';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { SoundToggle } from '@/components/ui/SoundToggle';
@@ -58,7 +57,6 @@ export function RoomClient({ roomId }: { roomId: string }) {
   const [showDirectJoinModal, setShowDirectJoinModal] = useState(false);
   
   const [floatingScores, setFloatingScores] = useState<{id: string, text: string, breakdown?: string[], color: string}[]>([]);
-  const [showEventInfo, setShowEventInfo] = useState(false);
   const [hideGameOverModal, setHideGameOverModal] = useState(false);
   const [attackModal, setAttackModal] = useState<{ isOpen: boolean, attackerId: string } | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
@@ -141,7 +139,7 @@ export function RoomClient({ roomId }: { roomId: string }) {
     if (newAchievements.size !== unlockedAchievements.size) {
       setUnlockedAchievements(newAchievements);
     }
-  }, [roomState?.gameState?.wordHistory?.length, userId, unlockedAchievements, addToast]);
+  }, [roomState?.gameState, roomState?.gameState?.wordHistory?.length, userId, unlockedAchievements, addToast]);
 
   const prevHistoryLength = React.useRef(0);
   React.useEffect(() => {
@@ -163,7 +161,7 @@ export function RoomClient({ roomId }: { roomId: string }) {
       }, 2500);
     }
     prevHistoryLength.current = history.length;
-  }, [roomState?.gameState?.wordHistory?.length, roomState?.gameState?.currentEvent]);
+  }, [roomState?.gameState, roomState?.gameState?.wordHistory?.length, roomState?.gameState?.currentEvent]);
 
   const ReconnectBanner = () => {
     if (!isOffline) return null;
@@ -378,7 +376,7 @@ export function RoomClient({ roomId }: { roomId: string }) {
 
         <div className="mt-8 opacity-70 flex flex-col items-center">
           <span className="font-display text-2xl md:text-4xl text-gray-400 text-center">
-            {gameState.players[currentPlayerId]?.name.toUpperCase()}'S TURN..
+            {gameState.players[currentPlayerId]?.name.toUpperCase()}&apos;S TURN..
           </span>
           {!isMyTurn && gameState.status === 'playing' && (
              <span className="font-sans text-sm md:text-base font-bold tracking-widest text-gray-500 mt-2">WAITING FOR THEM TO PLAY...</span>

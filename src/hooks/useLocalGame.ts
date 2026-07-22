@@ -12,7 +12,7 @@ import { getTurnDuration } from '@/lib/game-engine/gameModes';
 import { loadDictionary, getDictionarySize, generateHint } from '@/lib/game-engine/dictionary';
 import { loadCategoryDictionary, getAvailableCategories } from '@/lib/game-engine/categoryDictionary';
 import { useToast } from '@/components/ui/Toast';
-import { useAttackPowerup } from '@/lib/game-engine/gameEngine';
+import { useAttackPowerup as engineUseAttackPowerup } from '@/lib/game-engine/gameEngine';
 
 export function useLocalGame() {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -182,7 +182,7 @@ export function useLocalGame() {
 
   const activateAttack = useCallback((attackerId: string, targetId: string) => {
     if (!gameState) return;
-    const result = useAttackPowerup(gameState, attackerId, targetId);
+    const result = engineUseAttackPowerup(gameState, attackerId, targetId);
     if (result.isValid) {
        setGameState(result.state);
        addToast(`⚔️ Attack launched!`, 'success');

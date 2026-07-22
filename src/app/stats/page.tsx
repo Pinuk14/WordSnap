@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { getPersonalStats, UserStats } from '@/lib/firebase/stats';
-import { Card } from '@/components/ui/Card';
+
 import { Button } from '@/components/ui/Button';
 import { AuthBadge } from '@/components/auth/AuthBadge';
 import { useAuth } from '@/contexts/AuthContext';

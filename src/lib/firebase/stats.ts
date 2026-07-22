@@ -77,7 +77,7 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
 
   // Update Personal Stats
   const statsRef = ref(db, `stats/users/${userId}`);
-  const statsTx = await runTransaction(statsRef, (current: UserStats | null) => {
+  await runTransaction(statsRef, (current: UserStats | null) => {
     const stats: UserStats = current || {
       gamesPlayed: 0,
       wins: 0,
@@ -138,7 +138,7 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
     if (opponentIds.length > 0) {
       const K = 32;
       const expected = 1 / (1 + Math.pow(10, (avgOpponentMmr - stats.mmr) / 400));
-      let result = isDraw ? 0.5 : (isWinner ? 1 : 0);
+      const result = isDraw ? 0.5 : (isWinner ? 1 : 0);
       stats.mmr += K * (result - expected);
     }
 

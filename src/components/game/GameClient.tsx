@@ -3,11 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocalGame } from '@/hooks/useLocalGame';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Input';
-import { CircularTimer } from '@/components/ui/CircularTimer';
-import { Avatar } from '@/components/ui/Avatar';
-import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { SoundToggle } from '@/components/ui/SoundToggle';
 import { AuthBadge } from '@/components/auth/AuthBadge';
@@ -56,7 +51,6 @@ export function GameClient() {
       prevStreaks.current[p.id] = p.streak;
     }
   }, [gameState, playHeartLoss, playAchievement]);
-  const [showEventInfo, setShowEventInfo] = useState(false);
   const [hideGameOverModal, setHideGameOverModal] = useState(false);
   const [countdownText, setCountdownText] = useState<string | null>(null);
   const [attackModal, setAttackModal] = useState<{ isOpen: boolean, attackerId: string } | null>(null);
@@ -132,7 +126,7 @@ export function GameClient() {
       }, 2500);
     }
     prevHistoryLength.current = history.length;
-  }, [gameState?.wordHistory?.length, gameState?.currentEvent]);
+  }, [gameState, gameState?.wordHistory?.length, gameState?.currentEvent]);
 
   if (!isLoaded) {
     return (
@@ -208,22 +202,8 @@ export function GameClient() {
   const timePercentage = Math.min(100, Math.max(0, (timeRemaining / turnDuration) * 100));
 
   const wordHistory = gameState.wordHistory || [];
-  const lastWord = wordHistory.length > 0 
-    ? wordHistory[wordHistory.length - 1].word 
-    : '???';
 
-  let stateRequiredLetter = 'ANY';
-  if (gameState.deadlockLetterOverride) {
-    stateRequiredLetter = gameState.deadlockLetterOverride.toUpperCase();
-  } else if (gameState.currentEvent === 'vowel_frenzy') {
-    stateRequiredLetter = 'VOWEL';
-  } else if (wordHistory.length > 0) {
-    stateRequiredLetter = gameState.currentEvent === 'reverse_chain'
-      ? lastWord.charAt(0).toUpperCase()
-      : lastWord.charAt(lastWord.length - 1).toUpperCase();
-  }
-  
-  const requiredLetter = stateRequiredLetter;
+
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden font-sans">
@@ -299,7 +279,7 @@ export function GameClient() {
 
         <div className="mt-8 opacity-70">
           <span className="font-display text-2xl md:text-4xl text-gray-400">
-            {gameState.players[currentPlayerId].name.toUpperCase()}'S TURN..
+            {gameState.players[currentPlayerId].name.toUpperCase()}&apos;S TURN..
           </span>
         </div>
       </main>
