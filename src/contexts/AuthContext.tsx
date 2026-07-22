@@ -23,7 +23,7 @@ interface AuthContextType {
   /** True if a user is authenticated (guest or Google) */
   isAuthenticated: boolean;
   /** Sign in with Google (or link an anonymous account) */
-  signInGoogle: () => Promise<void>;
+  signInGoogle: (rememberMe?: boolean) => Promise<void>;
   /** Sign out and revert to guest */
   signOut: () => Promise<void>;
   /** Show/hide the auth modal */
@@ -83,13 +83,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, user]);
 
-  const signInGoogle = useCallback(async () => {
+  const signInGoogle = useCallback(async (rememberMe: boolean = true) => {
     try {
       if (user?.isAnonymous) {
         // Try to link the anonymous account to preserve in-game references
-        await linkAnonymousToGoogle();
+        await linkAnonymousToGoogle(rememberMe);
       } else {
-        await signInWithGoogle();
+        await signInWithGoogle(rememberMe);
       }
       setShowAuthModal(false);
     } catch (err) {

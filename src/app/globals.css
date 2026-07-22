@@ -8,6 +8,25 @@
   }
 
   *:focus-visible {
-    @apply outline-none ring-4 ring-primary ring-offset-4 ring-offset-background;
+    @apply outline-none ring-4 ring-primary ring-offset-2 ring-offset-background z-50;
+  }
+}
+
+/* Reduced Motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-pulse,
+  .animate-bounce,
+  .animate-shake,
+  .animate-floatUp {
+    animation: none !important;
   }
 }

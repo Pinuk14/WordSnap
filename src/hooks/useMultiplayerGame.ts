@@ -301,6 +301,24 @@ export function useMultiplayerGame() {
     
     setRoomState({ ...roomState, gameState: result.state });
     
+    switch (powerUp) {
+      case 'shield':
+        addToast('🛡️ Shield activated! Protected against next time-out.', 'success');
+        break;
+      case 'extra_time':
+        addToast('⏱️ +5 Seconds added to turn timer!', 'success');
+        break;
+      case 'double_score':
+        addToast('🔥 Double Score activated for your next valid word!', 'success');
+        break;
+      case 'life_restore':
+        addToast('❤️ +1 Life restored!', 'success');
+        break;
+      case 'letter_switch':
+        addToast(`🔤 Required letter switched to ${result.state.deadlockLetterOverride || 'new letter'}!`, 'success');
+        break;
+    }
+    
     // Transaction
     runTransaction(ref(db, `rooms/${roomId}/gameState`), (serverGs: GameState | null) => {
       if (!serverGs) return;

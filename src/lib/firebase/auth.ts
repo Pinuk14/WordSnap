@@ -5,6 +5,9 @@ import {
   linkWithPopup,
   onAuthStateChanged,
   signOut as firebaseSignOut,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   User,
   AuthError,
 } from 'firebase/auth';
@@ -24,7 +27,8 @@ export function signInAnonymouslyToFirebase(): Promise<User> {
  * Sign in with Google.
  * Opens a Google sign-in popup and returns the authenticated user.
  */
-export async function signInWithGoogle(): Promise<User> {
+export async function signInWithGoogle(rememberMe: boolean = true): Promise<User> {
+  await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
   const result = await signInWithPopup(auth, googleProvider);
   return result.user;
 }
@@ -35,14 +39,15 @@ export async function signInWithGoogle(): Promise<User> {
  * If linking fails due to credential-already-in-use, falls back to
  * a fresh Google sign-in (the anonymous account is abandoned).
  */
-export async function linkAnonymousToGoogle(): Promise<User> {
+export async function linkAnonymousToGoogle(rememberMe: boolean = true): Promise<User> {
   const currentUser = auth.currentUser;
   if (!currentUser || !currentUser.isAnonymous) {
     // Not anonymous — just do a regular Google sign-in
-    return signInWithGoogle();
+    return signInWithGoogle(rememberMe);
   }
 
   try {
+    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
     const result = await linkWithPopup(currentUser, googleProvider);
     return result.user;
   } catch (err) {
@@ -50,7 +55,7 @@ export async function linkAnonymousToGoogle(): Promise<User> {
     // If the Google account is already linked to another Firebase account,
     // fall back to a regular sign-in (abandons the anonymous account).
     if (authError.code === 'auth/credential-already-in-use') {
-      return signInWithGoogle();
+      return signInWithGoogle(rememberMe);
     }
     throw err;
   }

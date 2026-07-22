@@ -22,6 +22,7 @@ export const metadata: Metadata = {
 
 import { ToastProvider } from "@/components/ui/Toast";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { SoundProvider } from "@/contexts/SoundContext";
 import { AuthModal } from "@/components/auth/AuthModal";
 
 export default function RootLayout({
@@ -33,10 +34,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${pressStart2P.variable} font-sans antialiased`}>
         <AuthProvider>
-          <ToastProvider>
-            {children}
-            <AuthModal />
-          </ToastProvider>
+          <SoundProvider>
+            <ToastProvider>
+              {children}
+              <AuthModal />
+            </ToastProvider>
+          </SoundProvider>
         </AuthProvider>
       </body>
     </html>

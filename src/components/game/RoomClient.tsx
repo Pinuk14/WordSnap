@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useMultiplayerGame } from '@/hooks/useMultiplayerGame';
 import { Button } from '@/components/ui/Button';
@@ -10,6 +10,9 @@ import { CircularTimer } from '@/components/ui/CircularTimer';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { SoundToggle } from '@/components/ui/SoundToggle';
+import { AuthBadge } from '@/components/auth/AuthBadge';
+import { useSound } from '@/contexts/SoundContext';
 import { useToast } from '@/components/ui/Toast';
 import { getTurnDuration } from '@/lib/game-engine/gameModes';
 
@@ -34,6 +37,8 @@ export function RoomClient({ roomId }: { roomId: string }) {
     activateHint
   } = useMultiplayerGame();
 
+  const { playValidWord, playInvalidWord, playWinner } = useSound();
+
   const [hasAttemptedJoin, setHasAttemptedJoin] = useState(false);
   const [directJoinName, setDirectJoinName] = useState('');
   const [showDirectJoinModal, setShowDirectJoinModal] = useState(false);
@@ -45,6 +50,18 @@ export function RoomClient({ roomId }: { roomId: string }) {
   const [inputValue, setInputValue] = useState('');
   const [isInvalid, setIsInvalid] = useState(false);
   const { addToast } = useToast();
+  
+  // Winner sound trigger
+  const hasPlayedWinnerSound = useRef(false);
+  useEffect(() => {
+    if (roomState?.gameState?.status === 'finished' && !hasPlayedWinnerSound.current) {
+      playWinner();
+      hasPlayedWinnerSound.current = true;
+    }
+    if (roomState?.gameState?.status === 'playing') {
+      hasPlayedWinnerSound.current = false;
+    }
+  }, [roomState?.gameState?.status, playWinner]);
   
   // Achievement Trackers
   const [unlockedAchievements, setUnlockedAchievements] = useState<Set<string>>(new Set());
@@ -247,9 +264,11 @@ export function RoomClient({ roomId }: { roomId: string }) {
     
     const success = submit(inputValue);
     if (success) {
+      playValidWord();
       setInputValue('');
       setIsInvalid(false);
     } else {
+      playInvalidWord();
       setIsInvalid(true);
       setTimeout(() => setIsInvalid(false), 500); // clear animation
     }
@@ -259,6 +278,12 @@ export function RoomClient({ roomId }: { roomId: string }) {
     <div className="min-h-screen bg-background text-foreground flex flex-col pt-12 p-4 md:p-8">
       <ReconnectBanner />
       
+      {/* Header Controls */}
+      <div className="flex justify-end gap-3 mb-4">
+        <SoundToggle />
+        <AuthBadge />
+      </div>
+
       {/* Header: Scoreboard */}
       <header className="flex flex-wrap gap-4 justify-between items-center mb-8">
         <div className="flex flex-wrap gap-2 md:gap-4 w-full justify-center md:justify-start">
@@ -280,6 +305,16 @@ export function RoomClient({ roomId }: { roomId: string }) {
                     {p.streak >= 3 && <span className="text-base md:text-xl ml-1 font-display text-danger drop-shadow-[1px_1px_0_#000]" title={`${p.streak} Streak!`}>{p.streak}🔥</span>}
                   </span>
                   <span className="text-xs md:text-sm font-display text-primary">{p.score} PTS</span>
+                  {p.activePowerUp === 'shield' && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 mt-0.5 animate-pulse">
+                      🛡️ SHIELD
+                    </Badge>
+                  )}
+                  {p.activePowerUp === 'double_score' && (
+                    <Badge variant="danger" className="text-[10px] px-1.5 py-0.5 mt-0.5 animate-pulse">
+                      🔥 2X SCORE
+                    </Badge>
+                  )}
                   <div className="flex gap-1 mt-1 flex-wrap">
                     {Array.from({ length: Math.max(0, p.lives) }).map((_, i) => (
                       <div key={i} className="w-2 h-2 md:w-3 md:h-3 bg-danger border border-black rotate-45" />

@@ -66,9 +66,15 @@ export function useLocalGame() {
       if (remaining <= 0) {
         // Time out
         const currentPlayerId = gameState.playerOrder[gameState.currentPlayerIndex];
+        const playerBefore = gameState.players[currentPlayerId];
+        const wasShieldActive = playerBefore?.activePowerUp === 'shield';
         const newState = engineLoseLife(gameState, currentPlayerId);
         setGameState(newState);
-        addToast('Time is up! Life lost.', 'danger');
+        if (wasShieldActive) {
+          addToast(`🛡️ ${playerBefore.name}'s Shield blocked the life loss!`, 'info');
+        } else {
+          addToast(`Time is up! ${playerBefore?.name || 'Player'} lost a life.`, 'danger');
+        }
       }
     }, 100);
 
@@ -117,6 +123,24 @@ export function useLocalGame() {
     
     if (result.isValid) {
       setGameState(result.state);
+      // Give feedback toast based on activated power-up
+      switch (powerUp) {
+        case 'shield':
+          addToast('🛡️ Shield activated! Protected against next time-out.', 'success');
+          break;
+        case 'extra_time':
+          addToast('⏱️ +5 Seconds added to turn timer!', 'success');
+          break;
+        case 'double_score':
+          addToast('🔥 Double Score activated for your next valid word!', 'success');
+          break;
+        case 'life_restore':
+          addToast('❤️ +1 Life restored!', 'success');
+          break;
+        case 'letter_switch':
+          addToast(`🔤 Required letter switched to ${result.state.deadlockLetterOverride || 'new letter'}!`, 'success');
+          break;
+      }
     } else {
       addToast(result.error || "Can't use powerup", 'warning');
     }

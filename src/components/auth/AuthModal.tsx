@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 
 export function AuthModal() {
   const { showAuthModal, setShowAuthModal, signInGoogle, isLoading } = useAuth();
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleGuest = () => {
     // Already signed in anonymously by the AuthProvider
@@ -14,7 +15,7 @@ export function AuthModal() {
   };
 
   const handleGoogle = async () => {
-    await signInGoogle();
+    await signInGoogle(rememberMe);
   };
 
   return (
@@ -32,7 +33,8 @@ export function AuthModal() {
         <button
           onClick={handleGoogle}
           disabled={isLoading}
-          className="w-full flex items-center justify-center gap-3 bg-white text-black font-bold text-lg py-4 px-6 border-4 border-black rounded-brutal shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-[0px_0px_0_#000] active:translate-y-1 active:shadow-[0px_0px_0_#000] transition-all disabled:opacity-50"
+          aria-label="Continue with Google"
+          className="w-full flex items-center justify-center gap-3 bg-white text-black font-bold text-lg py-4 px-6 border-4 border-black rounded-brutal shadow-[4px_4px_0_#000] hover:translate-y-1 hover:shadow-[0px_0px_0_#000] active:translate-y-1 active:shadow-[0px_0px_0_#000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary focus-visible:ring-offset-2 transition-all disabled:opacity-50"
         >
           <svg viewBox="0 0 24 24" width="24" height="24" className="flex-shrink-0">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -42,6 +44,29 @@ export function AuthModal() {
           </svg>
           CONTINUE WITH GOOGLE
         </button>
+
+        {/* Keep Me Signed In Checkbox */}
+        <label className="flex items-center gap-3 cursor-pointer select-none group" htmlFor="remember-me-checkbox">
+          <div className="relative">
+            <input
+              id="remember-me-checkbox"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-6 h-6 border-4 border-black rounded bg-white peer-checked:bg-primary peer-focus-visible:ring-4 peer-focus-visible:ring-primary peer-focus-visible:ring-offset-2 transition-colors flex items-center justify-center">
+              {rememberMe && (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              )}
+            </div>
+          </div>
+          <span className="font-bold text-sm text-black group-hover:text-primary transition-colors">
+            Keep me signed in
+          </span>
+        </label>
 
         <div className="flex items-center gap-4">
           <div className="flex-1 h-1 bg-black/20 rounded" />
@@ -55,6 +80,7 @@ export function AuthModal() {
           variant="secondary"
           className="w-full text-lg py-4"
           disabled={isLoading}
+          aria-label="Continue as guest"
         >
           👤 CONTINUE AS GUEST
         </Button>

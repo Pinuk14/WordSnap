@@ -8,13 +8,16 @@ import { CircularTimer } from '@/components/ui/CircularTimer';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { SoundToggle } from '@/components/ui/SoundToggle';
+import { AuthBadge } from '@/components/auth/AuthBadge';
+import { useSound } from '@/contexts/SoundContext';
 import { GameMode } from '@/lib/game-engine/types';
 import { getTurnDuration } from '@/lib/game-engine/gameModes';
-
 import { useToast } from '@/components/ui/Toast';
 
 export function GameClient() {
   const { isLoaded, gameState, timeRemaining, startGame, submit, activatePowerUp, activateHint } = useLocalGame();
+  const { playValidWord, playInvalidWord, playWinner } = useSound();
   const [inputValue, setInputValue] = useState('');
   const [isInvalid, setIsInvalid] = useState(false);
   const { addToast } = useToast();
@@ -28,6 +31,18 @@ export function GameClient() {
 
   // Setup modal for start game
   const [isStartModalOpen, setIsStartModalOpen] = useState(true);
+
+  // Sound effect trigger for winner
+  const hasPlayedWinnerSound = React.useRef(false);
+  React.useEffect(() => {
+    if (gameState?.status === 'finished' && !hasPlayedWinnerSound.current) {
+      playWinner();
+      hasPlayedWinnerSound.current = true;
+    }
+    if (gameState?.status === 'playing') {
+      hasPlayedWinnerSound.current = false;
+    }
+  }, [gameState?.status, playWinner]);
 
   // Achievements Check
   React.useEffect(() => {
@@ -86,7 +101,7 @@ export function GameClient() {
 
   if (!isLoaded) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background text-primary">
+      <div className="flex h-screen items-center justify-center bg-background text-primary" role="status" aria-live="polite">
         <h1 className="font-display text-4xl animate-pulse">LOADING ENGINE...</h1>
       </div>
     );
@@ -106,9 +121,11 @@ export function GameClient() {
     
     const success = submit(inputValue);
     if (success) {
+      playValidWord();
       setInputValue('');
       setIsInvalid(false);
     } else {
+      playInvalidWord();
       setIsInvalid(true);
       setTimeout(() => setIsInvalid(false), 500); // clear animation
     }
@@ -119,9 +136,9 @@ export function GameClient() {
       <div className="flex h-screen items-center justify-center bg-background">
         <Modal isOpen={isStartModalOpen} onClose={() => {}} title="START LOCAL GAME">
           <div className="flex flex-col gap-4">
-            <Button onClick={() => handleStart('classic')}>Classic Mode</Button>
-            <Button onClick={() => handleStart('speed')} variant="danger">Speed Mode</Button>
-            <Button onClick={() => handleStart('category')} variant="secondary">Category Mode</Button>
+            <Button onClick={() => handleStart('classic')} aria-label="Start Classic Mode">Classic Mode</Button>
+            <Button onClick={() => handleStart('speed')} variant="danger" aria-label="Start Speed Mode">Speed Mode</Button>
+            <Button onClick={() => handleStart('category')} variant="secondary" aria-label="Start Category Mode">Category Mode</Button>
           </div>
         </Modal>
       </div>
@@ -150,9 +167,9 @@ export function GameClient() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col p-4 md:p-8">
-      {/* Header: Scoreboard */}
+      {/* Header: Scoreboard & Sound Controls */}
       <header className="flex flex-wrap gap-4 justify-between items-center mb-8">
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4 items-center">
           {gameState.playerOrder.map(pid => {
             const p = gameState.players[pid];
             const isCurrent = pid === currentPlayerId;
@@ -165,7 +182,17 @@ export function GameClient() {
                     {p.streak >= 3 && <span className="text-base md:text-xl ml-1 font-display text-danger drop-shadow-[1px_1px_0_#000]" title={`${p.streak} Streak!`}>{p.streak}🔥</span>}
                   </span>
                   <span className="text-sm font-display text-primary">{p.score} PTS</span>
-                  <div className="flex gap-1 mt-1">
+                  {p.activePowerUp === 'shield' && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 mt-1 animate-pulse">
+                      🛡️ SHIELD
+                    </Badge>
+                  )}
+                  {p.activePowerUp === 'double_score' && (
+                    <Badge variant="danger" className="text-[10px] px-1.5 py-0.5 mt-1 animate-pulse">
+                      🔥 2X SCORE
+                    </Badge>
+                  )}
+                  <div className="flex gap-1 mt-1" aria-label={`${p.lives} lives remaining`}>
                     {Array.from({ length: Math.max(0, p.lives) }).map((_, i) => (
                       <div key={i} className="w-3 h-3 bg-danger border border-black rotate-45" />
                     ))}
@@ -176,28 +203,33 @@ export function GameClient() {
           })}
         </div>
 
-        {gameState.mode === 'category' && gameState.currentCategory && (
-          <Badge variant="secondary" className="text-xl px-4 py-2 animate-bounce">
-            CATEGORY: {gameState.currentCategory.toUpperCase()}
-          </Badge>
-        )}
-        
-        {gameState.status === 'finished' && hideGameOverModal && (
-          <Button variant="secondary" onClick={() => setHideGameOverModal(false)} className="ml-4">
-            SHOW RESULTS
-          </Button>
-        )}
+        <div className="flex items-center gap-3">
+          {gameState.mode === 'category' && gameState.currentCategory && (
+            <Badge variant="secondary" className="text-xl px-4 py-2 animate-bounce">
+              CATEGORY: {gameState.currentCategory.toUpperCase()}
+            </Badge>
+          )}
+          
+          {gameState.status === 'finished' && hideGameOverModal && (
+            <Button variant="secondary" onClick={() => setHideGameOverModal(false)} className="ml-4" aria-label="Show game results">
+              SHOW RESULTS
+            </Button>
+          )}
+          <SoundToggle />
+          <AuthBadge />
+        </div>
       </header>
 
       {gameState.currentEvent && (
-        <div className="fixed top-4 right-4 md:top-8 md:right-8 bg-danger text-white border-4 border-black text-center px-4 py-2 shadow-[4px_4px_0_#000] z-50 flex items-center justify-center gap-2 rounded-brutal">
+        <div className="fixed top-4 right-4 md:top-8 md:right-8 bg-danger text-white border-4 border-black text-center px-4 py-2 shadow-[4px_4px_0_#000] z-50 flex items-center justify-center gap-2 rounded-brutal" role="region" aria-label="Active Game Event">
           <h3 className="font-display text-sm md:text-xl tracking-widest uppercase animate-pulse">
             EVENT: {gameState.currentEvent.replace('_', ' ')}
           </h3>
           <button 
             onClick={() => setShowEventInfo(true)}
-            className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white text-danger font-bold text-xs md:text-sm border-2 border-black flex items-center justify-center hover:scale-110 transition-transform"
+            className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white text-danger font-bold text-xs md:text-sm border-2 border-black flex items-center justify-center hover:scale-110 focus-visible:ring-2 focus-visible:ring-black transition-transform"
             title="Event Info"
+            aria-label="View event details"
           >
             i
           </button>
@@ -205,7 +237,7 @@ export function GameClient() {
       )}
 
       {gameState.deadlockLetterOverride && (
-        <div className="w-full bg-warning text-black border-y-4 border-black text-center py-1 mb-4">
+        <div className="w-full bg-warning text-black border-y-4 border-black text-center py-1 mb-4" role="alert">
           <h3 className="font-bold text-lg uppercase">
             Deadlock! Letter changed to {gameState.deadlockLetterOverride}
           </h3>
@@ -217,7 +249,7 @@ export function GameClient() {
         
         {/* Desktop Side Panel: Actions */}
         {gameState.status === 'playing' && (
-          <div className="hidden xl:flex absolute top-0 -left-[320px] w-72 flex-col gap-4 bg-card p-6 rounded-brutal border-4 border-black shadow-brutal">
+          <aside className="hidden xl:flex absolute top-0 -left-[320px] w-72 flex-col gap-4 bg-card p-6 rounded-brutal border-4 border-black shadow-brutal" aria-label="Player Actions">
             <h3 className="font-display text-xl text-primary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2">POWER-UPS</h3>
             <p className="font-bold text-sm text-gray-700">{gameState.players[currentPlayerId].name}&apos;s Inventory:</p>
             
@@ -228,6 +260,7 @@ export function GameClient() {
                   variant="secondary" 
                   className="w-full text-sm hover:animate-shake"
                   onClick={() => activatePowerUp(pu)}
+                  aria-label={`Activate power-up ${pu.replace('_', ' ')}`}
                 >
                   {pu.replace('_', ' ').toUpperCase()}
                 </Button>
@@ -245,15 +278,16 @@ export function GameClient() {
                   disabled={gameState.players[currentPlayerId]?.hints <= 0}
                   onClick={() => activateHint('common_continuation')}
                   className="px-3 py-1 text-sm"
+                  aria-label="Use word hint"
               >
                 USE HINT
               </Button>
             </div>
-          </div>
+          </aside>
         )}
 
         {/* Floating Scores Container */}
-        <div className="absolute top-1/4 right-10 md:right-20 xl:-right-20 pointer-events-none z-50 flex flex-col items-end gap-1">
+        <div className="absolute top-1/4 right-10 md:right-20 xl:-right-20 pointer-events-none z-50 flex flex-col items-end gap-1" aria-live="polite">
           {floatingScores.map(score => (
             <div key={score.id} className="animate-floatUp flex flex-col items-end">
               <span className={`font-display text-4xl md:text-6xl ${score.color} drop-shadow-[4px_4px_0_#000] whitespace-nowrap`}>
@@ -272,9 +306,9 @@ export function GameClient() {
           ))}
         </div>
 
-        <div className="flex flex-col items-center gap-4 md:gap-6 w-full">
+        <div className="flex flex-col items-center gap-4 md:gap-6 w-full text-center">
           <Badge variant="primary">LAST WORD</Badge>
-          <h2 className="font-display text-5xl md:text-7xl text-white uppercase tracking-widest drop-shadow-[4px_4px_0_#FF2E93] text-center break-all px-4">
+          <h2 className="font-display text-5xl md:text-7xl text-white uppercase tracking-widest drop-shadow-[4px_4px_0_#FF2E93] text-center break-all px-4" aria-live="polite">
             {lastWord}
           </h2>
           {requiredLetter !== 'ANY' && (
@@ -299,8 +333,9 @@ export function GameClient() {
             className="text-2xl uppercase h-16 w-full"
             autoFocus
             disabled={gameState.status === 'finished'}
+            aria-label="Type your word"
           />
-          <Button type="submit" variant="primary" className="h-16 px-8 text-xl" disabled={gameState.status === 'finished' || !inputValue.trim()}>
+          <Button type="submit" variant="primary" className="h-16 px-8 text-xl" disabled={gameState.status === 'finished' || !inputValue.trim()} aria-label="Submit word">
             SUBMIT
           </Button>
         </form>
@@ -316,6 +351,7 @@ export function GameClient() {
                   variant="secondary" 
                   className="px-3 py-1 text-sm md:text-base animate-pulse"
                   onClick={() => activatePowerUp(pu)}
+                  aria-label={`Activate power-up ${pu.replace('_', ' ')}`}
                 >
                   {pu.replace('_', ' ').toUpperCase()}
                 </Button>
@@ -332,6 +368,7 @@ export function GameClient() {
                   disabled={gameState.players[currentPlayerId]?.hints <= 0}
                   onClick={() => activateHint('common_continuation')}
                   className="px-3 py-1 text-sm"
+                  aria-label="Use hint"
                >
                  USE HINT
                </Button>
@@ -340,7 +377,7 @@ export function GameClient() {
         )}
 
         {/* Word History */}
-        <div className="w-full mt-4 bg-black/20 p-4 rounded-brutal h-48 overflow-y-auto border-4 border-black flex flex-col gap-2 shadow-brutal">
+        <section className="w-full mt-4 bg-black/20 p-4 rounded-brutal h-48 overflow-y-auto border-4 border-black flex flex-col gap-2 shadow-brutal" aria-label="Word History">
           <h3 className="font-display text-xl text-secondary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2 sticky top-0 bg-background/90 backdrop-blur">WORD HISTORY</h3>
           {[...gameState.wordHistory].reverse().map((sub, idx) => (
             <div key={idx} className="flex justify-between items-center bg-card p-2 rounded-brutal border-2 border-black">
@@ -353,7 +390,7 @@ export function GameClient() {
           {gameState.wordHistory.length === 0 && (
             <span className="text-gray-500 italic p-2">No words played yet.</span>
           )}
-        </div>
+        </section>
       </main>
 
       {/* Winner Modal */}
@@ -362,7 +399,7 @@ export function GameClient() {
         onClose={() => setHideGameOverModal(true)} 
         title="GAME OVER"
       >
-        <div className="flex flex-col items-center gap-6 text-center">
+        <div className="flex flex-col items-center gap-6 text-center" role="region" aria-live="polite">
           <h3 className="font-display text-4xl text-secondary drop-shadow-[2px_2px_0_#000]">
             {gameState.winnerId ? `${gameState.players[gameState.winnerId].name} WINS!` : 'DRAW!'}
           </h3>
@@ -371,7 +408,7 @@ export function GameClient() {
               Final Score: <span className="text-primary font-display">{gameState.players[gameState.winnerId].score}</span>
             </p>
           )}
-          <Button onClick={() => setIsStartModalOpen(true)} variant="primary" className="w-full mt-4 text-xl">
+          <Button onClick={() => setIsStartModalOpen(true)} variant="primary" className="w-full mt-4 text-xl" aria-label="Play local game again">
             PLAY AGAIN
           </Button>
         </div>
@@ -411,7 +448,7 @@ export function GameClient() {
             <p className="text-sm">You only have 50% of the normal time to submit a word!</p>
           </div>
           
-          <Button onClick={() => setShowEventInfo(false)} variant="primary" className="w-full mt-2">
+          <Button onClick={() => setShowEventInfo(false)} variant="primary" className="w-full mt-2" aria-label="Close event info">
             GOT IT
           </Button>
         </div>

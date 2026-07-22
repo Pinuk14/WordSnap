@@ -20,7 +20,8 @@ export function AuthBadge() {
     return (
       <button
         onClick={() => setShowAuthModal(true)}
-        className="flex items-center gap-2 bg-warning text-black px-3 py-2 rounded-brutal border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-[0px_0px_0_#000] transition-all font-bold text-sm"
+        aria-label="Guest account. Click to sign in with Google."
+        className="flex items-center gap-2 bg-warning text-black px-3 py-2 rounded-brutal border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-[0px_0px_0_#000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary focus-visible:ring-offset-2 transition-all font-bold text-sm"
       >
         👤 GUEST
         <span className="hidden md:inline text-xs opacity-70">· Sign In</span>
@@ -52,8 +53,9 @@ export function AuthBadge() {
       </div>
       <button
         onClick={signOut}
-        className="bg-danger text-white px-2 py-2 rounded-brutal border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-[0px_0px_0_#000] transition-all font-bold text-xs"
+        className="bg-danger text-white px-2 py-2 rounded-brutal border-2 border-black shadow-[2px_2px_0_#000] hover:translate-y-[1px] hover:shadow-[0px_0px_0_#000] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-primary focus-visible:ring-offset-2 transition-all font-bold text-xs"
         title="Sign Out"
+        aria-label="Sign Out"
       >
         ✕
       </button>
