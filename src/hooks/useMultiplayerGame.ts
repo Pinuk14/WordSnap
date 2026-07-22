@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ref, onValue, set, runTransaction, get } from 'firebase/database';
+import { ref, onValue, set, runTransaction, get, update } from 'firebase/database';
 import { db } from '@/lib/firebase/config';
 import { signInAnonymouslyToFirebase, subscribeToAuthChanges } from '@/lib/firebase/auth';
 import { setupPresence } from '@/lib/firebase/presence';
@@ -11,6 +11,7 @@ import {
   loseLife as engineLoseLife,
   usePowerUp as engineUsePowerUp,
   useHint as engineUseHint,
+  useAttackPowerup,
   getRequiredLetter
 } from '@/lib/game-engine/gameEngine';
 import { getTurnDuration } from '@/lib/game-engine/gameModes';
@@ -200,12 +201,8 @@ export function useMultiplayerGame() {
       return;
     }
     
-    // Use transaction to add player to avoid race conditions
-    await runTransaction(ref(db, `rooms/${code}/players`), (players) => {
-      if (!players) return players;
-      players[userId] = { name: safeName };
-      return players;
-    });
+    // Use set on the specific user node to avoid parent-level permission denial
+    await set(ref(db, `rooms/${code}/players/${userId}`), { name: safeName });
 
     setRoomId(code);
   }, [userId, addToast]);
@@ -222,13 +219,11 @@ export function useMultiplayerGame() {
         initialState.currentCategory = cats[Math.floor(Math.random() * cats.length)];
     }
 
-    // Update room
-    runTransaction(ref(db, `rooms/${roomId}`), (room) => {
-      if (!room) return room;
-      room.status = 'playing';
-      room.mode = mode;
-      room.gameState = initialState;
-      return room;
+    // Update room fields directly to pass security rules
+    update(ref(db, `rooms/${roomId}`), {
+      status: 'playing',
+      mode: mode,
+      gameState: initialState
     });
 
   }, [roomId, roomState, userId]);
@@ -358,6 +353,27 @@ export function useMultiplayerGame() {
     });
   }, [roomId, userId, roomState, addToast]);
 
+  const activateAttack = useCallback((attackerId: string, targetId: string) => {
+    if (!roomId || !userId || !roomState?.gameState) return;
+    const currentGs = roomState.gameState;
+    
+    // Optimistic
+    const result = useAttackPowerup(currentGs, attackerId, targetId);
+    if (!result.isValid) {
+      addToast(result.error || "Attack failed", "warning");
+      return;
+    }
+    
+    setRoomState({ ...roomState, gameState: result.state });
+    addToast(`⚔️ Attack launched against target!`, 'success');
+    
+    // Transaction
+    runTransaction(ref(db, `rooms/${roomId}/gameState`), (serverGs: GameState | null) => {
+      if (!serverGs) return;
+      return useAttackPowerup(serverGs, attackerId, targetId).state;
+    });
+  }, [roomId, userId, roomState, addToast]);
+
   return {
     isEngineLoaded,
     userId,
@@ -370,6 +386,7 @@ export function useMultiplayerGame() {
     startGame,
     submit,
     activatePowerUp,
-    activateHint
+    activateHint,
+    activateAttack
   };
 }

@@ -48,28 +48,31 @@ export function playValidWordSound() {
 }
 
 /**
- * Play a low buzz sound for invalid word submission.
+ * Play a retro "bloop bloop" error sound for invalid word submission.
  */
 export function playInvalidWordSound() {
   const ctx = getAudioContext();
   if (!ctx) return;
 
   const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-
-  osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(160, now);
-  osc.frequency.linearRampToValueAtTime(100, now + 0.2);
-
-  gain.gain.setValueAtTime(0.25, now);
-  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-
-  osc.start(now);
-  osc.stop(now + 0.25);
+  
+  // Two quick low square waves
+  [0, 0.15].forEach((delay) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(150, now + delay);
+    
+    gain.gain.setValueAtTime(0.1, now + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.1);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start(now + delay);
+    osc.stop(now + delay + 0.1);
+  });
 }
 
 /**
@@ -159,4 +162,230 @@ export function playClickSound() {
   gain2.connect(ctx.destination);
   osc2.start(now);
   osc2.stop(now + 0.06);
+}
+
+/**
+ * Play a subtle small note for typing a letter.
+ */
+export function playTypeLetterSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(800, now); // High pitch
+
+  gain.gain.setValueAtTime(0.05, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.05);
+}
+
+/**
+ * Play a subtle slightly lower note for deleting a letter.
+ */
+export function playDeleteLetterSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(300, now); // Lower pitch
+
+  gain.gain.setValueAtTime(0.05, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.06);
+}
+
+/**
+ * Play a countdown theme (3 low, 1 high beep).
+ */
+export function playCountdownSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  
+  // 3 short low beeps
+  for (let i = 0; i < 3; i++) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(440, now + i);
+    gain.gain.setValueAtTime(0.1, now + i);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i + 0.1);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + i);
+    osc.stop(now + i + 0.1);
+  }
+
+  // 1 high long beep
+  const finalOsc = ctx.createOscillator();
+  const finalGain = ctx.createGain();
+  finalOsc.type = 'square';
+  finalOsc.frequency.setValueAtTime(880, now + 3);
+  finalGain.gain.setValueAtTime(0.15, now + 3);
+  finalGain.gain.exponentialRampToValueAtTime(0.001, now + 3 + 0.5);
+  finalOsc.connect(finalGain);
+  finalGain.connect(ctx.destination);
+  finalOsc.start(now + 3);
+  finalOsc.stop(now + 3 + 0.5);
+}
+
+/**
+ * Play a retro 8-bit stepped down sound for losing a heart.
+ */
+export function playHeartLossSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'square';
+  // Step down pitch instead of smooth ramp for retro feel
+  osc.frequency.setValueAtTime(300, now);
+  osc.frequency.setValueAtTime(250, now + 0.1);
+  osc.frequency.setValueAtTime(200, now + 0.2);
+  osc.frequency.setValueAtTime(150, now + 0.3);
+
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.setValueAtTime(0.15, now + 0.3); // sustain
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.4);
+}
+
+/**
+ * Powerup 1: Fast ascending arpeggio.
+ */
+export function playPowerup1Sound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const notes = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
+
+  notes.forEach((freq, idx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+    gain.gain.setValueAtTime(0.1, now + idx * 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.1);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + idx * 0.05);
+    osc.stop(now + idx * 0.05 + 0.1);
+  });
+}
+
+/**
+ * Powerup 2: Shimmering sustain.
+ */
+export function playPowerup2Sound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const lfo = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const lfoGain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(600, now);
+  
+  lfo.type = 'sine';
+  lfo.frequency.setValueAtTime(20, now); // 20 Hz wobble
+  lfoGain.gain.setValueAtTime(50, now); // +/- 50 Hz
+
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.linearRampToValueAtTime(0.1, now + 0.3);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  lfo.start(now);
+  osc.start(now);
+  lfo.stop(now + 0.6);
+  osc.stop(now + 0.6);
+}
+
+/**
+ * Powerup 3: Resonant sweep up.
+ */
+export function playPowerup3Sound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(200, now);
+  osc.frequency.exponentialRampToValueAtTime(1200, now + 0.3);
+
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.start(now);
+  osc.stop(now + 0.4);
+}
+
+/**
+ * Play a small glimmery sound effect for achievements.
+ */
+export function playAchievementSound() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+  const notes = [1046.50, 1318.51, 1567.98, 2093.00]; // C6, E6, G6, C7
+
+  notes.forEach((freq, idx) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+
+    gain.gain.setValueAtTime(0.08, now + idx * 0.08);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now + idx * 0.08);
+    osc.stop(now + idx * 0.08 + 0.3);
+  });
 }

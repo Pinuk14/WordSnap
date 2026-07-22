@@ -12,11 +12,13 @@ import { getTurnDuration } from '@/lib/game-engine/gameModes';
 import { loadDictionary, getDictionarySize, generateHint } from '@/lib/game-engine/dictionary';
 import { loadCategoryDictionary, getAvailableCategories } from '@/lib/game-engine/categoryDictionary';
 import { useToast } from '@/components/ui/Toast';
+import { useAttackPowerup } from '@/lib/game-engine/gameEngine';
 
 export function useLocalGame() {
   const [isLoaded, setIsLoaded] = useState(false);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [currentHint, setCurrentHint] = useState<string | null>(null);
   const { addToast } = useToast();
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -109,9 +111,11 @@ export function useLocalGame() {
       }
 
       setGameState(nextState);
+      setCurrentHint(null);
       return true;
     } else {
       addToast(result.error || 'Invalid word', 'danger');
+      setGameState(result.state);
       return false;
     }
   }, [gameState, addToast]);
@@ -160,7 +164,12 @@ export function useLocalGame() {
           const usedWords = gameState.wordHistory.map(w => w.word);
           const hintWord = generateHint(requiredLetter, usedWords);
           if (hintWord) {
-            addToast(`HINT: Try a word starting with ${hintWord.slice(0, 2).toUpperCase()}... (Length: ${hintWord.length})`, 'success');
+             const masked = hintWord.toUpperCase().split('').map((char, i) => {
+               if (i === 0 || i === Math.floor(hintWord.length / 2) || i === hintWord.length - 1) return char;
+               return '_';
+             }).join('');
+             setCurrentHint(masked);
+             addToast(`Hint activated!`, 'success');
           } else {
             addToast(`No hints available!`, 'warning');
           }
@@ -171,13 +180,26 @@ export function useLocalGame() {
     }
   }, [gameState, addToast]);
 
+  const activateAttack = useCallback((attackerId: string, targetId: string) => {
+    if (!gameState) return;
+    const result = useAttackPowerup(gameState, attackerId, targetId);
+    if (result.isValid) {
+       setGameState(result.state);
+       addToast(`⚔️ Attack launched!`, 'success');
+    } else {
+       addToast(result.error || "Attack failed", 'warning');
+    }
+  }, [gameState, addToast]);
+
   return {
     isLoaded,
     gameState,
     timeRemaining,
+    currentHint,
     startGame,
     submit,
     activatePowerUp,
-    activateHint
+    activateHint,
+    activateAttack
   };
 }

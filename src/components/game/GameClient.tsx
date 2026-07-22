@@ -1,5 +1,6 @@
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLocalGame } from '@/hooks/useLocalGame';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -15,16 +16,50 @@ import { GameMode } from '@/lib/game-engine/types';
 import { getTurnDuration } from '@/lib/game-engine/gameModes';
 import { useToast } from '@/components/ui/Toast';
 
+import { WordChain } from './ui/WordChain';
+import { MinimalInput } from './ui/MinimalInput';
+import { MinimalTimer } from './ui/MinimalTimer';
+import { PlayerStrip } from './ui/PlayerStrip';
+import { PowerUpDock } from './ui/PowerUpDock';
+import { HintButton } from './ui/HintButton';
+import { GameEventOverlay } from './ui/GameEventOverlay';
+
 export function GameClient() {
-  const { isLoaded, gameState, timeRemaining, startGame, submit, activatePowerUp, activateHint } = useLocalGame();
-  const { playValidWord, playInvalidWord, playWinner } = useSound();
+  const router = useRouter();
+  const { isLoaded, gameState, timeRemaining, currentHint, startGame, submit, activatePowerUp, activateHint, activateAttack } = useLocalGame();
+  const { 
+    playValidWord, playInvalidWord, playWinner, 
+    playTypeLetter, playDeleteLetter, playCountdown, 
+    playHeartLoss, playPowerup1, playAchievement 
+  } = useSound();
   const [inputValue, setInputValue] = useState('');
   const [isInvalid, setIsInvalid] = useState(false);
   const { addToast } = useToast();
   
   const [floatingScores, setFloatingScores] = useState<{id: string, text: string, breakdown?: string[], color: string}[]>([]);
+  const prevLives = useRef<Record<string, number>>({});
+  const prevStreaks = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!gameState || gameState.status !== 'playing') return;
+    for (const p of Object.values(gameState.players)) {
+      const pPrevLives = prevLives.current[p.id];
+      if (pPrevLives !== undefined && p.lives < pPrevLives && p.lives >= 0) {
+        playHeartLoss();
+      }
+      prevLives.current[p.id] = p.lives;
+
+      const pPrevStreak = prevStreaks.current[p.id] || 0;
+      if (p.streak > pPrevStreak && p.streak >= 3) {
+        playAchievement();
+      }
+      prevStreaks.current[p.id] = p.streak;
+    }
+  }, [gameState, playHeartLoss, playAchievement]);
   const [showEventInfo, setShowEventInfo] = useState(false);
   const [hideGameOverModal, setHideGameOverModal] = useState(false);
+  const [countdownText, setCountdownText] = useState<string | null>(null);
+  const [attackModal, setAttackModal] = useState<{ isOpen: boolean, attackerId: string } | null>(null);
   
   // Achievement Trackers
   const [unlockedAchievements, setUnlockedAchievements] = useState<Set<string>>(new Set());
@@ -108,11 +143,26 @@ export function GameClient() {
   }
 
   const handleStart = (mode: GameMode) => {
-    startGame(mode, [
-      { id: 'p1', name: 'Player 1' },
-      { id: 'p2', name: 'Player 2' },
-    ]);
     setIsStartModalOpen(false);
+    playCountdown();
+    setCountdownText('3');
+    
+    let counter = 3;
+    const interval = setInterval(() => {
+      counter--;
+      if (counter > 0) {
+        setCountdownText(counter.toString());
+      } else if (counter === 0) {
+        setCountdownText('GO!');
+      } else {
+        clearInterval(interval);
+        setCountdownText(null);
+        startGame(mode, [
+          { id: 'p1', name: 'Player 1' },
+          { id: 'p2', name: 'Player 2' },
+        ]);
+      }
+    }, 1000);
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
@@ -134,13 +184,21 @@ export function GameClient() {
   if (!gameState || isStartModalOpen) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <Modal isOpen={isStartModalOpen} onClose={() => {}} title="START LOCAL GAME">
+        <Modal isOpen={isStartModalOpen} onClose={() => router.push('/')} title="START LOCAL GAME">
           <div className="flex flex-col gap-4">
             <Button onClick={() => handleStart('classic')} aria-label="Start Classic Mode">Classic Mode</Button>
             <Button onClick={() => handleStart('speed')} variant="danger" aria-label="Start Speed Mode">Speed Mode</Button>
             <Button onClick={() => handleStart('category')} variant="secondary" aria-label="Start Category Mode">Category Mode</Button>
           </div>
         </Modal>
+
+        {countdownText && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black">
+            <div className="font-display text-8xl md:text-9xl text-primary">
+              {countdownText}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -157,6 +215,8 @@ export function GameClient() {
   let stateRequiredLetter = 'ANY';
   if (gameState.deadlockLetterOverride) {
     stateRequiredLetter = gameState.deadlockLetterOverride.toUpperCase();
+  } else if (gameState.currentEvent === 'vowel_frenzy') {
+    stateRequiredLetter = 'VOWEL';
   } else if (wordHistory.length > 0) {
     stateRequiredLetter = gameState.currentEvent === 'reverse_chain'
       ? lastWord.charAt(0).toUpperCase()
@@ -166,137 +226,43 @@ export function GameClient() {
   const requiredLetter = stateRequiredLetter;
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col p-4 md:p-8">
-      {/* Header: Scoreboard & Sound Controls */}
-      <header className="flex flex-wrap gap-4 justify-between items-center mb-8">
-        <div className="flex flex-wrap gap-4 items-center">
-          {gameState.playerOrder.map(pid => {
-            const p = gameState.players[pid];
-            const isCurrent = pid === currentPlayerId;
-            return (
-              <Card key={pid} className={`p-4 flex items-center gap-4 transition-all duration-300 ${isCurrent ? 'ring-4 ring-primary scale-105' : 'opacity-70'} ${p.isEliminated ? 'grayscale opacity-30 scale-95' : ''}`}>
-                <Avatar alt={p.name} fallbackInitials={p.name.slice(0, 2).toUpperCase()} size="sm" />
-                <div className="flex flex-col">
-                  <span className="font-bold text-lg leading-tight text-black flex items-center gap-1">
-                    {p.name}
-                    {p.streak >= 3 && <span className="text-base md:text-xl ml-1 font-display text-danger drop-shadow-[1px_1px_0_#000]" title={`${p.streak} Streak!`}>{p.streak}🔥</span>}
-                  </span>
-                  <span className="text-sm font-display text-primary">{p.score} PTS</span>
-                  {p.activePowerUp === 'shield' && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 mt-1 animate-pulse">
-                      🛡️ SHIELD
-                    </Badge>
-                  )}
-                  {p.activePowerUp === 'double_score' && (
-                    <Badge variant="danger" className="text-[10px] px-1.5 py-0.5 mt-1 animate-pulse">
-                      🔥 2X SCORE
-                    </Badge>
-                  )}
-                  <div className="flex gap-1 mt-1" aria-label={`${p.lives} lives remaining`}>
-                    {Array.from({ length: Math.max(0, p.lives) }).map((_, i) => (
-                      <div key={i} className="w-3 h-3 bg-danger border border-black rotate-45" />
-                    ))}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+    <div className="min-h-screen bg-background text-foreground flex flex-col relative overflow-hidden font-sans">
+      <GameEventOverlay currentEvent={gameState.currentEvent} deadlockLetter={gameState.deadlockLetterOverride} />
 
-        <div className="flex items-center gap-3">
-          {gameState.mode === 'category' && gameState.currentCategory && (
-            <Badge variant="secondary" className="text-xl px-4 py-2 animate-bounce">
-              CATEGORY: {gameState.currentCategory.toUpperCase()}
-            </Badge>
-          )}
-          
-          {gameState.status === 'finished' && hideGameOverModal && (
-            <Button variant="secondary" onClick={() => setHideGameOverModal(false)} className="ml-4" aria-label="Show game results">
-              SHOW RESULTS
-            </Button>
-          )}
-          <SoundToggle />
-          <AuthBadge />
+      {/* Header Area (Minimal) */}
+      <header className="w-full flex justify-between items-center p-4 absolute top-0 left-0 right-0 z-40">
+        <div className="flex gap-4 items-center">
+           <SoundToggle />
+           <AuthBadge />
         </div>
+        <HintButton 
+          hintsRemaining={gameState.players[currentPlayerId]?.hints || 0} 
+          onActivate={() => activateHint('common_continuation')} 
+          disabled={gameState.status === 'finished'}
+        />
       </header>
 
-      {gameState.currentEvent && (
-        <div className="fixed top-4 right-4 md:top-8 md:right-8 bg-danger text-white border-4 border-black text-center px-4 py-2 shadow-[4px_4px_0_#000] z-50 flex items-center justify-center gap-2 rounded-brutal" role="region" aria-label="Active Game Event">
-          <h3 className="font-display text-sm md:text-xl tracking-widest uppercase animate-pulse">
-            EVENT: {gameState.currentEvent.replace('_', ' ')}
-          </h3>
-          <button 
-            onClick={() => setShowEventInfo(true)}
-            className="w-5 h-5 md:w-6 md:h-6 rounded-full bg-white text-danger font-bold text-xs md:text-sm border-2 border-black flex items-center justify-center hover:scale-110 focus-visible:ring-2 focus-visible:ring-black transition-transform"
-            title="Event Info"
-            aria-label="View event details"
-          >
-            i
-          </button>
-        </div>
-      )}
+      {/* Top Player Strip */}
+      <div className="w-full mt-20 md:mt-16">
+        <PlayerStrip 
+          players={gameState.players} 
+          playerOrder={gameState.playerOrder} 
+          currentPlayerId={currentPlayerId} 
+          onAttackClick={(id) => setAttackModal({ isOpen: true, attackerId: id })}
+        />
+      </div>
 
-      {gameState.deadlockLetterOverride && (
-        <div className="w-full bg-warning text-black border-y-4 border-black text-center py-1 mb-4" role="alert">
-          <h3 className="font-bold text-lg uppercase">
-            Deadlock! Letter changed to {gameState.deadlockLetterOverride}
-          </h3>
-        </div>
-      )}
-
-      {/* Main Game Area */}
-      <main className="flex-1 flex flex-col items-center justify-center max-w-2xl mx-auto w-full gap-8 lg:gap-12 mt-8 relative">
-        
-        {/* Desktop Side Panel: Actions */}
-        {gameState.status === 'playing' && (
-          <aside className="hidden xl:flex absolute top-0 -left-[320px] w-72 flex-col gap-4 bg-card p-6 rounded-brutal border-4 border-black shadow-brutal" aria-label="Player Actions">
-            <h3 className="font-display text-xl text-primary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2">POWER-UPS</h3>
-            <p className="font-bold text-sm text-gray-700">{gameState.players[currentPlayerId].name}&apos;s Inventory:</p>
-            
-            <div className="flex flex-col gap-2">
-              {gameState.players[currentPlayerId]?.powerUps?.map((pu, idx) => (
-                <Button 
-                  key={idx} 
-                  variant="secondary" 
-                  className="w-full text-sm hover:animate-shake"
-                  onClick={() => activatePowerUp(pu)}
-                  aria-label={`Activate power-up ${pu.replace('_', ' ')}`}
-                >
-                  {pu.replace('_', ' ').toUpperCase()}
-                </Button>
-              ))}
-              {(!gameState.players[currentPlayerId]?.powerUps || gameState.players[currentPlayerId].powerUps.length === 0) && (
-                <span className="text-sm text-gray-500 italic">None available.</span>
-              )}
-            </div>
-            
-            <h3 className="font-display text-xl text-secondary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2 mt-4">HINTS</h3>
-            <div className="flex items-center justify-between">
-              <span className="font-bold">Remaining: {gameState.players[currentPlayerId]?.hints || 0}</span>
-              <Button 
-                  variant="primary" 
-                  disabled={gameState.players[currentPlayerId]?.hints <= 0}
-                  onClick={() => activateHint('common_continuation')}
-                  className="px-3 py-1 text-sm"
-                  aria-label="Use word hint"
-              >
-                USE HINT
-              </Button>
-            </div>
-          </aside>
-        )}
-
-        {/* Floating Scores Container */}
-        <div className="absolute top-1/4 right-10 md:right-20 xl:-right-20 pointer-events-none z-50 flex flex-col items-end gap-1" aria-live="polite">
+      {/* Floating Scores Container */}
+      <div className="absolute top-1/4 right-10 md:right-20 xl:right-32 pointer-events-none z-50 flex flex-col items-end gap-1" aria-live="polite">
           {floatingScores.map(score => (
             <div key={score.id} className="animate-floatUp flex flex-col items-end">
-              <span className={`font-display text-4xl md:text-6xl ${score.color} drop-shadow-[4px_4px_0_#000] whitespace-nowrap`}>
+              <span className={`font-display text-4xl md:text-5xl ${score.color} drop-shadow-[2px_2px_0_#000] whitespace-nowrap`}>
                 {score.text}
               </span>
               {score.breakdown && score.breakdown.length > 0 && (
-                <div className="flex flex-col gap-1 mt-1 items-end">
+                <div className="flex flex-col gap-1 mt-1 items-end opacity-80">
                   {score.breakdown.map((line, i) => (
-                    <span key={i} className="text-sm md:text-base font-bold bg-white text-black px-2 border-2 border-black rotate-[2deg] drop-shadow-[2px_2px_0_#FF2E93] whitespace-nowrap">
+                    <span key={i} className="text-xs md:text-sm font-bold bg-card text-black px-1 border border-black rotate-[2deg] whitespace-nowrap">
                       {line}
                     </span>
                   ))}
@@ -304,94 +270,57 @@ export function GameClient() {
               )}
             </div>
           ))}
+      </div>
+
+      {/* Main Canvas */}
+      <main className="flex-1 flex flex-col items-center justify-center w-full max-w-4xl mx-auto px-4 z-10 relative pb-20">
+        <WordChain history={wordHistory} currentEvent={gameState.currentEvent} />
+        
+
+
+        <div className="w-full max-w-md my-4">
+          <MinimalTimer percentage={timePercentage} seconds={timeRemaining} />
         </div>
 
-        <div className="flex flex-col items-center gap-4 md:gap-6 w-full text-center">
-          <Badge variant="primary">LAST WORD</Badge>
-          <h2 className="font-display text-5xl md:text-7xl text-white uppercase tracking-widest drop-shadow-[4px_4px_0_#FF2E93] text-center break-all px-4" aria-live="polite">
-            {lastWord}
-          </h2>
-          {requiredLetter !== 'ANY' && (
-            <p className="font-sans font-bold text-xl text-gray-300">
-              Must start with <span className="text-secondary text-4xl font-display ml-2">{requiredLetter}</span>
-            </p>
-          )}
-        </div>
-
-        <CircularTimer 
-          percentage={timePercentage} 
-          size={160} 
-          label={`${Math.ceil(timeRemaining)}s`} 
-        />
-
-        <form onSubmit={handleSubmit} className="w-full flex flex-col sm:flex-row gap-4">
-          <Input 
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder={`${gameState.players[currentPlayerId].name}'S TURN...`}
-            state={isInvalid ? 'invalid' : 'default'}
-            className="text-2xl uppercase h-16 w-full"
-            autoFocus
-            disabled={gameState.status === 'finished'}
-            aria-label="Type your word"
+        <div className="w-full mt-4">
+          <MinimalInput 
+            value={inputValue} 
+            onChange={(val) => {
+              if (val.length > inputValue.length) playTypeLetter();
+              if (val.length < inputValue.length) playDeleteLetter();
+              setInputValue(val);
+            }} 
+            onSubmit={handleSubmit} 
+            isInvalid={isInvalid} 
+            disabled={gameState.status === 'finished'} 
+            currentHint={currentHint}
           />
-          <Button type="submit" variant="primary" className="h-16 px-8 text-xl" disabled={gameState.status === 'finished' || !inputValue.trim()} aria-label="Submit word">
-            SUBMIT
-          </Button>
-        </form>
+        </div>
 
-        {/* Mobile Action Bar */}
-        {gameState.status === 'playing' && (
-          <div className="flex xl:hidden w-full flex-wrap justify-between items-center bg-card p-4 rounded-brutal border-4 border-black shadow-brutal">
-            <div className="flex gap-2 items-center flex-wrap">
-              <span className="font-display text-lg mr-2">POWER-UPS:</span>
-              {gameState.players[currentPlayerId]?.powerUps?.map((pu, idx) => (
-                <Button 
-                  key={idx} 
-                  variant="secondary" 
-                  className="px-3 py-1 text-sm md:text-base animate-pulse"
-                  onClick={() => activatePowerUp(pu)}
-                  aria-label={`Activate power-up ${pu.replace('_', ' ')}`}
-                >
-                  {pu.replace('_', ' ').toUpperCase()}
-                </Button>
-              ))}
-              {(!gameState.players[currentPlayerId]?.powerUps || gameState.players[currentPlayerId].powerUps.length === 0) && (
-                <span className="text-sm text-gray-500 italic">None</span>
-              )}
-            </div>
-            
-            <div className="flex gap-4 items-center mt-4 md:mt-0">
-               <span className="font-display text-lg">HINTS ({gameState.players[currentPlayerId]?.hints || 0}):</span>
-               <Button 
-                  variant="primary" 
-                  disabled={gameState.players[currentPlayerId]?.hints <= 0}
-                  onClick={() => activateHint('common_continuation')}
-                  className="px-3 py-1 text-sm"
-                  aria-label="Use hint"
-               >
-                 USE HINT
-               </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Word History */}
-        <section className="w-full mt-4 bg-black/20 p-4 rounded-brutal h-48 overflow-y-auto border-4 border-black flex flex-col gap-2 shadow-brutal" aria-label="Word History">
-          <h3 className="font-display text-xl text-secondary drop-shadow-[2px_2px_0_#000] border-b-4 border-black pb-2 sticky top-0 bg-background/90 backdrop-blur">WORD HISTORY</h3>
-          {[...gameState.wordHistory].reverse().map((sub, idx) => (
-            <div key={idx} className="flex justify-between items-center bg-card p-2 rounded-brutal border-2 border-black">
-              <span className="font-bold text-lg text-black">{sub.word.toUpperCase()}</span>
-              <span className="text-sm font-bold text-primary">
-                {gameState.players[sub.playerId].name} (+{sub.points})
-              </span>
-            </div>
-          ))}
-          {gameState.wordHistory.length === 0 && (
-            <span className="text-gray-500 italic p-2">No words played yet.</span>
-          )}
-        </section>
+        <div className="mt-8 opacity-70">
+          <span className="font-display text-2xl md:text-4xl text-gray-400">
+            {gameState.players[currentPlayerId].name.toUpperCase()}'S TURN..
+          </span>
+        </div>
       </main>
+
+      {/* Bottom PowerUps Area */}
+      <footer className="absolute bottom-4 left-4 md:bottom-8 md:left-8 z-40">
+        {gameState.status === 'playing' && (
+          <PowerUpDock 
+            powerUps={gameState.players[currentPlayerId]?.powerUps || []} 
+            onActivate={(pu) => {
+              if (pu === 'attack') {
+                setAttackModal({ isOpen: true, attackerId: currentPlayerId });
+              } else {
+                playPowerup1();
+                activatePowerUp(pu);
+              }
+            }} 
+            disabled={false} 
+          />
+        )}
+      </footer>
 
       {/* Winner Modal */}
       <Modal 
@@ -411,48 +340,42 @@ export function GameClient() {
           <Button onClick={() => setIsStartModalOpen(true)} variant="primary" className="w-full mt-4 text-xl" aria-label="Play local game again">
             PLAY AGAIN
           </Button>
-        </div>
-      </Modal>
-
-      {/* Event Info Modal */}
-      <Modal 
-        isOpen={showEventInfo} 
-        onClose={() => setShowEventInfo(false)} 
-        title="BONUS EVENTS"
-      >
-        <div className="flex flex-col gap-4 text-left p-2">
-          <p className="font-bold mb-2">Every 5 turns, a random event might trigger!</p>
           
-          <div className="bg-card p-3 rounded-brutal border-2 border-black">
-            <h4 className="font-display text-primary text-xl">DOUBLE POINTS</h4>
-            <p className="text-sm">Every valid word earns double its normal score.</p>
-          </div>
-          
-          <div className="bg-card p-3 rounded-brutal border-2 border-black">
-            <h4 className="font-display text-secondary text-xl">LONG WORD BONUS</h4>
-            <p className="text-sm">Words with 8 or more letters earn an extra +15 points.</p>
-          </div>
-          
-          <div className="bg-card p-3 rounded-brutal border-2 border-black">
-            <h4 className="font-display text-success text-xl">REVERSE CHAIN</h4>
-            <p className="text-sm">You must start your word with the <strong>FIRST</strong> letter of the previous word (instead of the last).</p>
-          </div>
-          
-          <div className="bg-card p-3 rounded-brutal border-2 border-black">
-            <h4 className="font-display text-warning text-xl">VOWEL FRENZY</h4>
-            <p className="text-sm">Words must strictly begin with a Vowel (A, E, I, O, U) regardless of the previous word!</p>
-          </div>
-          
-          <div className="bg-card p-3 rounded-brutal border-2 border-black">
-            <h4 className="font-display text-purple-400 text-xl">RAPID FIRE</h4>
-            <p className="text-sm">You only have 50% of the normal time to submit a word!</p>
-          </div>
-          
-          <Button onClick={() => setShowEventInfo(false)} variant="primary" className="w-full mt-2" aria-label="Close event info">
-            GOT IT
+          <Button variant="secondary" onClick={() => setHideGameOverModal(true)} className="w-full text-lg">
+            VIEW BOARD
           </Button>
         </div>
       </Modal>
+
+      {/* Attack Selection Modal */}
+      {attackModal && attackModal.isOpen && (
+        <Modal 
+          isOpen={true} 
+          onClose={() => setAttackModal(null)} 
+          title="SELECT TARGET"
+        >
+          <div className="flex flex-col gap-4">
+            {gameState.playerOrder.map(pid => {
+              const p = gameState.players[pid];
+              if (p.isEliminated || pid === attackModal.attackerId) return null;
+              return (
+                <Button 
+                  key={pid}
+                  onClick={() => {
+                    activateAttack(attackModal.attackerId, pid);
+                    setAttackModal(null);
+                  }}
+                  className="w-full text-lg flex justify-between px-6"
+                  variant="danger"
+                >
+                  <span className="font-bold">{p.name}</span>
+                  <span>{p.score} pts</span>
+                </Button>
+              );
+            })}
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

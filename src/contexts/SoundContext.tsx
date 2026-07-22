@@ -7,6 +7,14 @@ import {
   playWinnerSound,
   playHoverSound as rawPlayHover,
   playClickSound as rawPlayClick,
+  playTypeLetterSound,
+  playDeleteLetterSound,
+  playCountdownSound,
+  playHeartLossSound,
+  playPowerup1Sound,
+  playPowerup2Sound,
+  playPowerup3Sound,
+  playAchievementSound,
 } from '@/lib/audio';
 
 interface SoundContextType {
@@ -17,6 +25,14 @@ interface SoundContextType {
   playWinner: () => void;
   playHover: () => void;
   playClick: () => void;
+  playTypeLetter: () => void;
+  playDeleteLetter: () => void;
+  playCountdown: () => void;
+  playHeartLoss: () => void;
+  playPowerup1: () => void;
+  playPowerup2: () => void;
+  playPowerup3: () => void;
+  playAchievement: () => void;
 }
 
 const SoundContext = createContext<SoundContextType>({
@@ -27,6 +43,14 @@ const SoundContext = createContext<SoundContextType>({
   playWinner: () => {},
   playHover: () => {},
   playClick: () => {},
+  playTypeLetter: () => {},
+  playDeleteLetter: () => {},
+  playCountdown: () => {},
+  playHeartLoss: () => {},
+  playPowerup1: () => {},
+  playPowerup2: () => {},
+  playPowerup3: () => {},
+  playAchievement: () => {},
 });
 
 export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -76,6 +100,38 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!isMuted) rawPlayClick();
   }, [isMuted]);
 
+  const playTypeLetter = useCallback(() => {
+    if (!isMuted) playTypeLetterSound();
+  }, [isMuted]);
+
+  const playDeleteLetter = useCallback(() => {
+    if (!isMuted) playDeleteLetterSound();
+  }, [isMuted]);
+
+  const playCountdown = useCallback(() => {
+    if (!isMuted) playCountdownSound();
+  }, [isMuted]);
+
+  const playHeartLoss = useCallback(() => {
+    if (!isMuted) playHeartLossSound();
+  }, [isMuted]);
+
+  const playPowerup1 = useCallback(() => {
+    if (!isMuted) playPowerup1Sound();
+  }, [isMuted]);
+
+  const playPowerup2 = useCallback(() => {
+    if (!isMuted) playPowerup2Sound();
+  }, [isMuted]);
+
+  const playPowerup3 = useCallback(() => {
+    if (!isMuted) playPowerup3Sound();
+  }, [isMuted]);
+
+  const playAchievement = useCallback(() => {
+    if (!isMuted) playAchievementSound();
+  }, [isMuted]);
+
   return (
     <SoundContext.Provider
       value={{
@@ -86,6 +142,14 @@ export const SoundProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         playWinner,
         playHover,
         playClick,
+        playTypeLetter,
+        playDeleteLetter,
+        playCountdown,
+        playHeartLoss,
+        playPowerup1,
+        playPowerup2,
+        playPowerup3,
+        playAchievement,
       }}
     >
       {children}

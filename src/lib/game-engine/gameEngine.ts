@@ -14,7 +14,7 @@ export interface GameEngineResult {
   isValid?: boolean;
 }
 
-const ALL_POWERUPS: PowerUpType[] = ['shield', 'extra_time', 'double_score', 'life_restore', 'letter_switch'];
+const ALL_POWERUPS: PowerUpType[] = ['shield', 'extra_time', 'double_score', 'life_restore', 'letter_switch', 'attack'];
 const ALL_EVENTS: BonusEventType[] = ['rapid_fire', 'double_points', 'long_word_bonus', 'reverse_chain', 'vowel_frenzy'];
 const ALPHABET = 'ABCDEFGHIJKLMNOPRSTUVWXY'; // Exclude Q, Z for deadlock recovery (keep it playable)
 
@@ -74,7 +74,7 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   
   // Custom Validation for Event constraints
   if (state.currentEvent === 'vowel_frenzy' && !/^[AEIOU]/i.test(word)) {
-    return { state, isValid: false, error: 'Vowel Frenzy: Word must start with a vowel!' };
+    return { state: loseLife(state, playerId), isValid: false, error: 'Vowel Frenzy: Word must start with a vowel!' };
   }
 
   // Normal validation
@@ -92,7 +92,7 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   }
 
   if (expectedLetter && word.charAt(0).toLowerCase() !== expectedLetter.toLowerCase()) {
-    return { state, isValid: false, error: `Word must start with ${expectedLetter.toUpperCase()}` };
+    return { state: loseLife(state, playerId), isValid: false, error: `Word must start with ${expectedLetter.toUpperCase()}` };
   }
 
   const validation = validateSubmission(word, state.wordHistory);
@@ -106,17 +106,17 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
     if (state.currentEvent !== 'reverse_chain' && !state.deadlockLetterOverride) {
       // It's a true error
       pState.streak = 0;
-      return { state, isValid: false, error: validation.error };
+      return { state: loseLife(state, playerId), isValid: false, error: validation.error };
     }
   } else if (!validation.isValid) {
     pState.streak = 0;
-    return { state, isValid: false, error: validation.error };
+    return { state: loseLife(state, playerId), isValid: false, error: validation.error };
   }
 
   if (state.mode === 'category' && state.currentCategory) {
     if (!isInCategory(word, state.currentCategory)) {
       pState.streak = 0;
-      return { state, isValid: false, error: `Word does not belong to category: ${state.currentCategory}` };
+      return { state: loseLife(state, playerId), isValid: false, error: `Word does not belong to category: ${state.currentCategory}` };
     }
   }
 
@@ -208,6 +208,32 @@ export function nextTurn(state: GameState): GameState {
     return newState;
   }
 
+  // Check if a round was completed (wrapped around)
+  if (nextIndex <= newState.currentPlayerIndex) {
+    newState.roundsCompleted = (newState.roundsCompleted || 0) + 1;
+    
+    // Regenerate powerups every 3 rounds
+    if (newState.roundsCompleted % 3 === 0) {
+      const activePlayers = Object.values(newState.players).filter(p => !p.isEliminated);
+      activePlayers.forEach(p => {
+        if (p.powerUps.length < 3) {
+          const seed = generateGameSeed(Date.now(), newState.roundsCompleted! + p.name.length);
+          p.powerUps.push(pickRandom(ALL_POWERUPS, seed));
+        }
+      });
+    }
+  }
+
+  // Handle Shield Duration
+  Object.values(newState.players).forEach(p => {
+    if (p.shieldTurnsLeft && p.shieldTurnsLeft > 0) {
+      p.shieldTurnsLeft--;
+      if (p.shieldTurnsLeft === 0) {
+        if (p.activePowerUp === 'shield') p.activePowerUp = null;
+      }
+    }
+  });
+
   newState.currentPlayerIndex = nextIndex;
   newState.currentTurnStartTime = Date.now();
 
@@ -232,9 +258,9 @@ export function loseLife(state: GameState & { extraTimeAdded?: number }, playerI
   const player = newState.players[playerId];
 
   if (player.activePowerUp === 'shield') {
-    player.activePowerUp = null;
     // Shield blocks life loss, but streak breaks and turn passes
     player.streak = 0;
+    // Note: Shield is not consumed here, it lasts for 1 complete round (managed in nextTurn)
   } else {
     player.lives -= 1;
     player.streak = 0;
@@ -295,10 +321,39 @@ export function usePowerUp(state: GameState & { extraTimeAdded?: number }, playe
     const seed = generateGameSeed(Date.now(), player.stats.powerUpsUsed);
     newState.deadlockLetterOverride = pickRandom(ALPHABET.split(''), seed);
     newState.deadlockCounter = 0;
+    newState.currentTurnStartTime = Date.now(); // Reset turn timer when switching letter
+  } else if (powerUp === 'shield') {
+    player.activePowerUp = powerUp;
+    const activePlayersCount = Object.values(newState.players).filter(p => !p.isEliminated).length;
+    player.shieldTurnsLeft = activePlayersCount;
   } else {
     player.activePowerUp = powerUp;
   }
 
+  return { state: newState, isValid: true };
+}
+
+export function useAttackPowerup(state: GameState, attackerId: string, targetId: string): GameEngineResult {
+  const newState = JSON.parse(JSON.stringify(state)) as GameState;
+  const attacker = newState.players[attackerId];
+  const target = newState.players[targetId];
+  
+  if (!attacker || !target) return { state, isValid: false, error: 'Invalid players' };
+  
+  const pIndex = attacker.powerUps.indexOf('attack');
+  if (pIndex === -1) return { state, isValid: false, error: 'Power-Up not owned' };
+  
+  attacker.powerUps.splice(pIndex, 1);
+  attacker.stats.powerUpsUsed++;
+  
+  attacker.score += 10;
+  
+  if (target.activePowerUp === 'shield') {
+     // Shield blocks the attack
+  } else {
+     target.score = Math.max(0, target.score - 5);
+  }
+  
   return { state: newState, isValid: true };
 }
 
