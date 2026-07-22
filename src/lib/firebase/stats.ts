@@ -121,7 +121,8 @@ export async function recordGameStats(userId: string, roomId: string, gameState:
   });
 
   // Only write to permanent leaderboards if the user is NOT a guest
-  const isGuestUser = auth.currentUser?.isAnonymous ?? true;
+  const currentUser = auth.currentUser;
+  const isGuestUser = currentUser ? currentUser.providerData.length === 0 : true;
   if (isGuestUser) {
     // Guest users still get their stats recorded for session viewing,
     // but they are excluded from permanent leaderboards.

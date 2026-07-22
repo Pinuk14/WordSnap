@@ -82,13 +82,16 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   // We'll let the validator do standard, but we must override if needed.
   // To keep it simple, we check required letter manually if reverse_chain or deadlock override is active.
   let expectedLetter = '';
-  if (state.deadlockLetterOverride) {
-    expectedLetter = state.deadlockLetterOverride;
-  } else if (state.wordHistory.length > 0) {
-    const lastWord = state.wordHistory[state.wordHistory.length - 1].word;
-    expectedLetter = state.currentEvent === 'reverse_chain' 
-      ? lastWord.charAt(0).toLowerCase() 
-      : lastWord.charAt(lastWord.length - 1).toLowerCase();
+  // Bypass expected letter check if Vowel Frenzy is active because ANY vowel is allowed
+  if (state.currentEvent !== 'vowel_frenzy') {
+    if (state.deadlockLetterOverride) {
+      expectedLetter = state.deadlockLetterOverride;
+    } else if (state.wordHistory.length > 0) {
+      const lastWord = state.wordHistory[state.wordHistory.length - 1].word;
+      expectedLetter = state.currentEvent === 'reverse_chain' 
+        ? lastWord.charAt(0).toLowerCase() 
+        : lastWord.charAt(lastWord.length - 1).toLowerCase();
+    }
   }
 
   if (expectedLetter && word.charAt(0).toLowerCase() !== expectedLetter.toLowerCase()) {
@@ -103,7 +106,7 @@ export function submitWord(state: GameState & { extraTimeAdded?: number }, playe
   // Let's assume validateSubmission does the standard check. If reverse_chain, we must bypass its letter check.
   
   if (!validation.isValid && validation.error?.includes('start with')) {
-    if (state.currentEvent !== 'reverse_chain' && !state.deadlockLetterOverride) {
+    if (state.currentEvent !== 'reverse_chain' && state.currentEvent !== 'vowel_frenzy' && !state.deadlockLetterOverride) {
       // It's a true error
       pState.streak = 0;
       return { state: loseLife(state, playerId), isValid: false, error: validation.error };
@@ -378,6 +381,11 @@ export { calculateWordScore as calculateScore } from './scoring';
 export { checkWinCondition as getWinner } from './winConditions';
 
 export function getRequiredLetter(state: GameState): string {
+  // If Vowel Frenzy is active, there is no specific letter required, just any vowel
+  if (state.currentEvent === 'vowel_frenzy') {
+    return '';
+  }
+  
   if (state.deadlockLetterOverride) {
     return state.deadlockLetterOverride.toLowerCase();
   }

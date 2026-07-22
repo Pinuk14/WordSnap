@@ -7,8 +7,8 @@
       "$roomId": {
         // Anyone authenticated can read room data (needed to join/spectate)
         ".read": "auth != null",
-        // Room-level writes: only allow creating a new room
-        ".write": "auth != null && !data.exists()",
+        // Room-level writes: allow creating a new room, or allow host to delete the room
+        ".write": "(auth != null && !data.exists()) || (auth != null && !newData.exists() && data.child('hostId').val() === auth.uid)",
         "status": {
           // Only the host can change room status
           ".write": "auth != null && auth.uid === data.parent().child('hostId').val()"

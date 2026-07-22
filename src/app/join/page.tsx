@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -16,6 +16,12 @@ export default function JoinRoomPage() {
   );
   const [roomCode, setRoomCode] = useState('');
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isGuest && userProfile?.displayName && !playerName) {
+      setPlayerName(userProfile.displayName);
+    }
+  }, [isGuest, userProfile, playerName]);
 
   const handleJoin = () => {
     const sanitizedName = sanitizePlayerName(playerName);

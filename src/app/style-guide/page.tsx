@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/Badge';
 import { CircularTimer } from '@/components/ui/CircularTimer';
 import { useToast } from '@/components/ui/Toast';
 import { Avatar } from '@/components/ui/Avatar';
-import { ProgressBar } from '@/components/ui/ProgressBar';
 
 export default function StyleGuide() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,13 +66,6 @@ export default function StyleGuide() {
               <CircularTimer percentage={100} size={64} label="20s" />
               <CircularTimer percentage={50} size={80} label="10s" />
               <CircularTimer percentage={20} size={96} label="4s" />
-            </div>
-            
-            <div className="space-y-6">
-              <ProgressBar percentage={100} label="Health (Full)" variant="success" />
-              <ProgressBar percentage={50} label="Health (Half)" variant="warning" />
-              <ProgressBar percentage={15} label="Health (Critical)" variant="danger" />
-              <ProgressBar percentage={75} label="XP Progress" variant="secondary" />
             </div>
           </Card>
         </section>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ref, onValue, set, runTransaction, get, update } from 'firebase/database';
+import { ref, onValue, set, runTransaction, get, update, remove } from 'firebase/database';
 import { db } from '@/lib/firebase/config';
 import { signInAnonymouslyToFirebase, subscribeToAuthChanges } from '@/lib/firebase/auth';
 import { setupPresence } from '@/lib/firebase/presence';
@@ -36,6 +36,7 @@ export function useMultiplayerGame() {
   const [roomId, setRoomId] = useState<string | null>(null);
   const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [currentHint, setCurrentHint] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
   
   const { addToast } = useToast();
@@ -177,18 +178,22 @@ export function useMultiplayerGame() {
     const safeName = sanitizePlayerName(playerName);
     const newRoomId = forcedRoomId ? sanitizeRoomCode(forcedRoomId) : Math.random().toString(36).substring(2, 6).toUpperCase();
     
-    await set(ref(db, `rooms/${newRoomId}`), {
-      status: 'lobby',
-      mode: 'classic',
-      hostId: userId,
-      players: {
-        [userId]: { name: safeName }
-      },
-      gameState: null
-    });
-    
-    setRoomId(newRoomId);
-  }, [userId]);
+    try {
+      await set(ref(db, `rooms/${newRoomId}`), {
+        status: 'lobby',
+        mode: 'classic',
+        hostId: userId,
+        players: {
+          [userId]: { name: safeName }
+        },
+        gameState: null
+      });
+      setRoomId(newRoomId);
+    } catch (err: any) {
+      console.error('Failed to create room', err);
+      addToast(err.message || 'Failed to create room. Permission denied.', 'danger');
+    }
+  }, [userId, addToast]);
 
   const joinRoom = useCallback(async (joinCode: string, playerName: string) => {
     if (!userId) return;
@@ -202,10 +207,33 @@ export function useMultiplayerGame() {
     }
     
     // Use set on the specific user node to avoid parent-level permission denial
-    await set(ref(db, `rooms/${code}/players/${userId}`), { name: safeName });
-
-    setRoomId(code);
+    try {
+      await set(ref(db, `rooms/${code}/players/${userId}`), { name: safeName });
+      setRoomId(code);
+    } catch (err: any) {
+      console.error('Failed to join room', err);
+      addToast(err.message || 'Failed to join room. Room might be full or closed.', 'danger');
+    }
   }, [userId, addToast]);
+
+  const leaveRoom = useCallback(async () => {
+    if (!roomId || !userId || !roomState) return;
+    
+    try {
+      if (roomState.hostId === userId) {
+        // Host leaves: delete the entire room
+        await remove(ref(db, `rooms/${roomId}`));
+      } else {
+        // Guest leaves: remove themselves from players list
+        await remove(ref(db, `rooms/${roomId}/players/${userId}`));
+      }
+    } catch (err) {
+      console.error('Failed to leave room cleanly', err);
+    }
+    
+    setRoomId(null);
+    setRoomState(null);
+  }, [roomId, userId, roomState]);
 
   const startGame = useCallback((mode: GameMode) => {
     if (!roomId || !roomState || roomState.hostId !== userId) return;
@@ -220,13 +248,18 @@ export function useMultiplayerGame() {
     }
 
     // Update room fields directly to pass security rules
-    update(ref(db, `rooms/${roomId}`), {
-      status: 'playing',
-      mode: mode,
-      gameState: initialState
-    });
+    try {
+      update(ref(db, `rooms/${roomId}`), {
+        status: 'playing',
+        mode: mode,
+        gameState: initialState
+      });
+    } catch (err: any) {
+      console.error('Failed to start game', err);
+      addToast(err.message || 'Failed to start game.', 'danger');
+    }
 
-  }, [roomId, roomState, userId]);
+  }, [roomId, roomState, userId, addToast]);
 
   const submit = useCallback((word: string) => {
     if (!roomId || !roomState || !roomState.gameState || !userId) return false;
@@ -242,19 +275,22 @@ export function useMultiplayerGame() {
     
     // Optimistic check
     const result = engineSubmitWord(gs, currentPlayerId, safeWord);
-    if (!result.isValid) {
-      addToast(result.error || 'Invalid word', 'danger');
-      return false;
-    }
-
     const nextState = result.state;
-    if (nextState.mode === 'category' && nextState.wordHistory.length % 5 === 0) {
+
+    // Apply category mode changes if valid
+    if (result.isValid && nextState.mode === 'category' && nextState.wordHistory.length % 5 === 0) {
         const cats = getAvailableCategories();
         nextState.currentCategory = cats[Math.floor(Math.random() * cats.length)];
     }
 
     // Optimistic Update Local State
     setRoomState({ ...roomState, gameState: nextState });
+    
+    if (result.isValid) {
+      setCurrentHint(null);
+    } else {
+      addToast(result.error || 'Invalid word', 'danger');
+    }
 
     // Send to Firebase atomically
     runTransaction(ref(db, `rooms/${roomId}/gameState`), (currentGs: GameState | null) => {
@@ -263,24 +299,21 @@ export function useMultiplayerGame() {
         return; // transaction aborted, onValue listener will rollback UI
       }
       if (!currentGs.wordHistory) currentGs.wordHistory = [];
+      const res = engineSubmitWord(currentGs, currentPlayerId, safeWord);
       
-      const serverResult = engineSubmitWord(currentGs, currentPlayerId, safeWord);
-      if (serverResult.isValid) {
-        const serverNext = serverResult.state;
-        if (serverNext.mode === 'category' && serverNext.wordHistory.length % 5 === 0) {
-            // Keep deterministic category if possible, or just generate
-            serverNext.currentCategory = nextState.currentCategory;
-        }
-        return serverNext;
+      const serverNextState = res.state;
+      if (res.isValid && serverNextState.mode === 'category' && serverNextState.wordHistory.length % 5 === 0) {
+          const cats = getAvailableCategories();
+          serverNextState.currentCategory = cats[Math.floor(Math.random() * cats.length)];
       }
-      return;
+      return serverNextState;
     }).then(res => {
       if (!res.committed) {
          addToast("Submission rejected by server", "warning");
       }
     });
 
-    return true;
+    return result.isValid;
   }, [roomId, roomState, userId, addToast]);
 
   const activatePowerUp = useCallback((powerUp: PowerUpType) => {
@@ -337,7 +370,12 @@ export function useMultiplayerGame() {
        const usedWords = currentGs.wordHistory.map(w => w.word);
        const hintWord = generateHint(requiredLetter, usedWords);
        if (hintWord) {
-         addToast(`HINT: Try a word starting with ${hintWord.slice(0, 2).toUpperCase()}... (Length: ${hintWord.length})`, 'success');
+         const masked = hintWord.toUpperCase().split('').map((char, i) => {
+           if (i === 0 || i === Math.floor(hintWord.length / 2) || i === hintWord.length - 1) return char;
+           return '_';
+         }).join('');
+         setCurrentHint(masked);
+         addToast(`Hint activated!`, 'success');
        } else {
          addToast(`No hints available!`, 'warning');
        }
@@ -380,9 +418,11 @@ export function useMultiplayerGame() {
     roomId,
     roomState,
     timeRemaining,
+    currentHint,
     isOffline,
     createRoom,
     joinRoom,
+    leaveRoom,
     startGame,
     submit,
     activatePowerUp,

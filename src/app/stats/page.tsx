@@ -9,7 +9,7 @@ import { AuthBadge } from '@/components/auth/AuthBadge';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function StatsPage() {
-  const { user, isGuest, isAuthenticated, setShowAuthModal } = useAuth();
+  const { user, userProfile, isGuest, isAuthenticated, setShowAuthModal } = useAuth();
   const [stats, setStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -73,49 +73,59 @@ export default function StatsPage() {
         </div>
       )}
 
-      {!stats ? (
-        <Card className="w-full max-w-md p-8 text-center bg-card flex flex-col gap-4">
-          <h2 className="font-display text-3xl text-danger">NO DATA YET</h2>
-          <p className="font-bold text-gray-800">Play your first game to start tracking your statistics!</p>
-          <Link href="/">
-            <Button variant="primary" className="w-full mt-4">PLAY NOW</Button>
-          </Link>
-        </Card>
-      ) : (
-        <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-          <div className="col-span-2 md:col-span-4 bg-secondary text-black border-4 border-black p-6 rounded-brutal shadow-[8px_8px_0_#000] mb-4">
-            <h2 className="font-display text-4xl mb-2">{stats.playerName.toUpperCase()}</h2>
-            <p className="font-bold text-lg opacity-80">
-              {isGuest ? 'Guest Profile (Temporary)' : 'WordSnap Profile'}
-            </p>
-          </div>
+      {(() => {
+        const displayStats = stats || {
+          gamesPlayed: 0, wins: 0, losses: 0, totalScore: 0, totalWords: 0,
+          highestScore: 0, longestWinStreak: 0, currentWinStreak: 0, topWord: null,
+          playerName: userProfile?.displayName || 'PLAYER',
+          hintsUsed: 0, powerUpsUsed: 0, perfectRounds: 0, deadlocksSurvived: 0
+        };
 
-          <StatBox label="Games Played" value={stats.gamesPlayed} />
-          <StatBox label="Wins" value={stats.wins} textColor="text-success" />
-          <StatBox label="Losses" value={stats.losses} textColor="text-danger" />
-          <StatBox label="Win Rate" value={`${Math.round((stats.wins / Math.max(1, stats.gamesPlayed)) * 100)}%`} />
-
-          <StatBox label="Avg Score" value={Math.round(stats.totalScore / Math.max(1, stats.gamesPlayed))} bg="bg-primary/20" textColor="text-primary" />
-          <StatBox label="Avg Words" value={Math.round(stats.totalWords / Math.max(1, stats.gamesPlayed))} bg="bg-primary/20" textColor="text-primary" />
-          <StatBox label="Highest Score" value={stats.highestScore} textColor="text-secondary" />
-          <StatBox label="Longest Streak" value={stats.longestWinStreak} textColor="text-success" />
-
-          {stats.topWord && (
-            <div className="col-span-2 md:col-span-4 mt-4 bg-primary text-foreground border-4 border-black p-6 md:p-8 rounded-brutal flex flex-col md:flex-row items-center justify-between shadow-[8px_8px_0_#000]">
-              <div className="flex flex-col text-center md:text-left mb-4 md:mb-0">
-                <span className="font-bold text-xl opacity-90 mb-2">TOP WORD PLAYED</span>
-                <span className="font-display text-5xl md:text-7xl tracking-widest break-all">
-                  {stats.topWord.word.toUpperCase()}
-                </span>
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="font-display text-6xl text-secondary drop-shadow-[2px_2px_0_#000]">{stats.topWord.points}</span>
-                <span className="font-bold">POINTS</span>
-              </div>
+        return (
+          <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            <div className="col-span-2 md:col-span-4 bg-secondary text-black border-4 border-black p-6 rounded-brutal shadow-[8px_8px_0_#000] mb-4">
+              <h2 className="font-display text-4xl mb-2">{displayStats.playerName.toUpperCase()}</h2>
+              <p className="font-bold text-lg opacity-80">
+                {isGuest ? 'Guest Profile (Temporary)' : 'WordSnap Profile'}
+              </p>
             </div>
-          )}
-        </div>
-      )}
+
+            <StatBox label="Games Played" value={displayStats.gamesPlayed} />
+            <StatBox label="Wins" value={displayStats.wins} textColor="text-success" />
+            <StatBox label="Losses" value={displayStats.losses} textColor="text-danger" />
+            <StatBox label="Win Rate" value={`${Math.round((displayStats.wins / Math.max(1, displayStats.gamesPlayed)) * 100)}%`} />
+
+            <StatBox label="Avg Score" value={Math.round(displayStats.totalScore / Math.max(1, displayStats.gamesPlayed))} bg="bg-primary/20" textColor="text-primary" />
+            <StatBox label="Avg Words" value={Math.round(displayStats.totalWords / Math.max(1, displayStats.gamesPlayed))} bg="bg-primary/20" textColor="text-primary" />
+            <StatBox label="Highest Score" value={displayStats.highestScore} textColor="text-secondary" />
+            <StatBox label="Longest Streak" value={displayStats.longestWinStreak} textColor="text-success" />
+
+            {displayStats.topWord && (
+              <div className="col-span-2 md:col-span-4 mt-4 bg-primary text-foreground border-4 border-black p-6 md:p-8 rounded-brutal flex flex-col md:flex-row items-center justify-between shadow-[8px_8px_0_#000]">
+                <div className="flex flex-col text-center md:text-left mb-4 md:mb-0">
+                  <span className="font-bold text-xl opacity-90 mb-2">TOP WORD PLAYED</span>
+                  <span className="font-display text-5xl md:text-7xl tracking-widest break-all">
+                    {displayStats.topWord.word.toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="font-display text-6xl text-secondary drop-shadow-[2px_2px_0_#000]">{displayStats.topWord.points}</span>
+                  <span className="font-bold">POINTS</span>
+                </div>
+              </div>
+            )}
+            
+            {!stats && (
+              <div className="col-span-2 md:col-span-4 mt-4 text-center">
+                <p className="font-bold text-gray-800 text-lg">Play your first game to start tracking your statistics!</p>
+                <Link href="/">
+                  <Button variant="primary" className="mt-4 px-8 py-3 text-xl">PLAY NOW</Button>
+                </Link>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

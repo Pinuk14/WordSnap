@@ -51,6 +51,11 @@ export default function Home() {
             </Button>
           </Link>
         </div>
+        <Link href="/account" aria-label="Manage your account">
+          <Button variant="danger" className="w-full text-base sm:text-lg py-4">
+            ACCOUNT SETTINGS
+          </Button>
+        </Link>
       </nav>
     </main>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -15,6 +15,12 @@ export default function CreateRoomPage() {
     !isGuest && userProfile?.displayName ? userProfile.displayName : ''
   );
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isGuest && userProfile?.displayName && !playerName) {
+      setPlayerName(userProfile.displayName);
+    }
+  }, [isGuest, userProfile, playerName]);
 
   const handleCreate = () => {
     const sanitized = sanitizePlayerName(playerName);

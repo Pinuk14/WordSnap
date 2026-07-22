@@ -23,10 +23,11 @@ export async function createOrUpdateProfile(user: User): Promise<void> {
     // Update last login
     await set(profileRef, {
       ...snap.val(),
-      displayName: user.displayName || snap.val().displayName,
-      photoURL: user.photoURL || snap.val().photoURL,
+      uid: user.uid,
+      displayName: user.displayName || snap.val().displayName || 'Player',
+      photoURL: user.photoURL || snap.val().photoURL || null,
       lastLoginAt: serverTimestamp(),
-      isGuest: user.isAnonymous,
+      isGuest: user.providerData.length === 0,
     });
   } else {
     // New profile
@@ -36,7 +37,7 @@ export async function createOrUpdateProfile(user: User): Promise<void> {
       photoURL: user.photoURL || null,
       createdAt: serverTimestamp(),
       lastLoginAt: serverTimestamp(),
-      isGuest: user.isAnonymous,
+      isGuest: user.providerData.length === 0,
     });
   }
 }
@@ -47,4 +48,18 @@ export async function createOrUpdateProfile(user: User): Promise<void> {
 export async function getProfile(userId: string): Promise<UserProfile | null> {
   const snap = await get(ref(db, `players/${userId}`));
   return snap.exists() ? (snap.val() as UserProfile) : null;
+}
+
+/**
+ * Update the user's displayName in the database.
+ */
+export async function updateProfileName(userId: string, newName: string): Promise<void> {
+  const profileRef = ref(db, `players/${userId}`);
+  const snap = await get(profileRef);
+  if (snap.exists()) {
+    await set(profileRef, {
+      ...snap.val(),
+      displayName: newName
+    });
+  }
 }

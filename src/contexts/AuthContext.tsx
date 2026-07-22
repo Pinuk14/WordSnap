@@ -29,6 +29,8 @@ interface AuthContextType {
   /** Show/hide the auth modal */
   showAuthModal: boolean;
   setShowAuthModal: (show: boolean) => void;
+  /** Force refresh the user profile */
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -41,6 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   signOut: async () => {},
   showAuthModal: false,
   setShowAuthModal: () => {},
+  refreshProfile: async () => {},
 });
 
 export function useAuth() {
@@ -53,7 +56,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  const isGuest = user?.isAnonymous ?? true;
+  // A user is a guest if they have no authentication providers linked (anonymous)
+  const isGuest = user ? user.providerData.length === 0 : true;
   const isAuthenticated = !!user;
 
   // Subscribe to auth state
@@ -61,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsub = subscribeToAuthChanges(async (firebaseUser) => {
       setUser(firebaseUser);
 
-      if (firebaseUser && !firebaseUser.isAnonymous) {
+      if (firebaseUser && firebaseUser.providerData.length > 0) {
         // Google user — create/update profile and load it
         await createOrUpdateProfile(firebaseUser);
         const profile = await getProfile(firebaseUser.uid);
@@ -85,9 +89,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInGoogle = useCallback(async (rememberMe: boolean = true) => {
     try {
-      if (user?.isAnonymous) {
+      if (user && user.providerData.length === 0) {
         // Try to link the anonymous account to preserve in-game references
-        await linkAnonymousToGoogle(rememberMe);
+        const linkedUser = await linkAnonymousToGoogle(rememberMe);
+        
+        // Force state update since onAuthStateChanged might not fire when linking
+        // Create a new object reference to trigger React re-render
+        const updatedUser = Object.assign(Object.create(Object.getPrototypeOf(linkedUser)), linkedUser);
+        setUser(updatedUser);
+        
+        await createOrUpdateProfile(updatedUser);
+        const profile = await getProfile(updatedUser.uid);
+        setUserProfile(profile);
       } else {
         await signInWithGoogle(rememberMe);
       }
@@ -108,6 +121,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const refreshProfile = useCallback(async () => {
+    if (user?.uid) {
+      const profile = await getProfile(user.uid);
+      setUserProfile(profile);
+    }
+  }, [user]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -120,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signOut,
         showAuthModal,
         setShowAuthModal,
+        refreshProfile,
       }}
     >
       {children}
